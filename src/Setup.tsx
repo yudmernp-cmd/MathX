@@ -1,29 +1,56 @@
 import {
   ArrowRight,
-  BookOpen,
-  Calculator,
-  Check,
   ChevronDown,
-  Clock3,
-  FileStack,
-  GraduationCap,
-  ListChecks,
   NotebookPen,
-  SlidersHorizontal,
-  Sparkles,
-  Layers,
-  Timer,
-  Shapes,
+  Files,
+  Clock3,
 } from 'lucide-react'
-import { Surface } from './Figures'
-import { calc, levels, type Config, type Difficulty } from './math/model'
+import { useId, type ReactNode } from 'react'
+import {
+  calc,
+  levels,
+  themes,
+  type Config,
+  type Difficulty,
+  type Theme,
+} from './math/model'
+import { courseFamilies } from './math/engine'
 import type { Mode } from './math/session'
-import type { ReactNode } from 'react'
 
-export const names = {
+const names = {
   MAI: 'Aplicaciones e Interpretación',
   MAE: 'Análisis y Enfoques',
 }
+
+function Select({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  children: ReactNode
+}) {
+  const id = useId()
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <span className="select-wrap">
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {children}
+        </select>
+        <ChevronDown size={16} aria-hidden="true" />
+      </span>
+    </div>
+  )
+}
+
 export function Setup({
   config,
   setConfig,
@@ -38,136 +65,136 @@ export function Setup({
   begin: () => void
 }) {
   const isExam = mode === 'Simulacros'
-  function row(label: string, value: string, icon: ReactNode) {
-    return (
-      <div className="summary-row">
-        {icon}
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
-    )
+  const topics = courseFamilies(config).filter((f) => f.theme === config.theme)
+  const current = topics.find((f) => f.id === config.subtopic)
+  function updateCourseOrPaper(next: Config) {
+    const accessible = courseFamilies(next)
+    setConfig({
+      ...next,
+      subtopic: accessible.some(
+        (f) => f.id === next.subtopic && f.theme === next.theme,
+      )
+        ? next.subtopic
+        : undefined,
+    })
   }
+  const summary = [
+    ['Asignatura', config.course + ' NM'],
+    ['Prueba', 'Prueba ' + config.paper],
+    ...(isExam
+      ? []
+      : [
+          ['Tema', config.theme || 'Todos los temas'],
+          ['Subtema', current?.topic || 'Todos los subtemas'],
+        ]),
+    ['Dificultad', config.difficulty],
+    ['Calculadora', calc(config) ? 'Gráfica requerida' : 'Sin calculadora'],
+  ]
   return (
     <>
-      <section className="hero">
-        <div className="hero-text">
-          <div className="eyebrow mint">
-            <span className="tiny-line" /> MATEMÁTICAS IB · NIVEL MEDIO
-          </div>
-          <h1>
-            Laboratorio matemático<span>.</span>
-          </h1>
-          <p>
-            Genera ejercicios originales y practica a tu ritmo con simulacros de
-            examen.
-          </p>
-        </div>
-        <div className="hero-art">
-          <Surface />
-        </div>
-      </section>
+      <div className="page-title">
+        <h1>Práctica de Matemáticas IB</h1>
+      </div>
       <div className="setup-grid">
         <section className="panel setup">
-          <div className="section-title">
-            <span className="iconbox">
-              <SlidersHorizontal size={20} />
-            </span>
-            <h2>Configura tu práctica</h2>
-          </div>
+          <h2>Configura tu práctica</h2>
           <fieldset>
             <legend>Modalidad</legend>
             <div className="mode-options">
               {(['Ejercicios', 'Simulacros'] as const).map((m) => {
-                const selected = m === mode,
-                  Icon = m === 'Ejercicios' ? NotebookPen : FileStack
+                const Icon = m === 'Ejercicios' ? NotebookPen : Files
                 return (
                   <button
                     key={m}
-                    aria-pressed={selected}
-                    className={'mode-card ' + (selected ? 'selected' : '')}
+                    type="button"
+                    aria-pressed={m === mode}
                     onClick={() => setMode(m)}
                   >
-                    <Icon size={23} />
-                    <span>
-                      <b>{m}</b>
-                      <small>
-                        {m === 'Ejercicios'
-                          ? 'Un problema a la vez'
-                          : 'Una prueba completa'}
-                      </small>
-                    </span>
-                    <i className="radio-dot">{selected && <i />}</i>
+                    <Icon size={19} aria-hidden="true" />
+                    <span>{m}</span>
+                    <i className="dot" aria-hidden="true" />
                   </button>
                 )
               })}
             </div>
           </fieldset>
-          <fieldset>
-            <legend>Asignatura</legend>
-            <div className="select-wrap">
-              <BookOpen size={19} />
-              <select
-                aria-label="Asignatura"
-                value={config.course}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    course: e.target.value as Config['course'],
-                  })
-                }
-              >
-                {Object.entries(names).map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {id} NM · {name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={17} />
-            </div>
-          </fieldset>
+          <Select
+            label="Asignatura"
+            value={config.course}
+            onChange={(course) =>
+              updateCourseOrPaper({
+                ...config,
+                course: course as Config['course'],
+              })
+            }
+          >
+            {Object.entries(names).map(([id, name]) => (
+              <option key={id} value={id}>
+                {id} NM — {name}
+              </option>
+            ))}
+          </Select>
           <fieldset>
             <legend>Prueba</legend>
-            <div className="seg papers">
+            <div className="seg">
               {([1, 2] as const).map((p) => (
                 <button
                   key={p}
                   aria-pressed={config.paper === p}
-                  className={config.paper === p ? 'active' : ''}
-                  onClick={() => setConfig({ ...config, paper: p })}
+                  onClick={() => updateCourseOrPaper({ ...config, paper: p })}
                 >
                   Prueba {p}
-                  {config.paper === p && <Check size={15} />}
                 </button>
               ))}
             </div>
           </fieldset>
+          {!isExam && (
+            <div className="topic-fields">
+              <Select
+                label="Tema"
+                value={config.theme || ''}
+                onChange={(theme) =>
+                  setConfig({
+                    ...config,
+                    theme: (theme as Theme) || undefined,
+                    subtopic: undefined,
+                  })
+                }
+              >
+                <option value="">Todos los temas</option>
+                {themes.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </Select>
+              {config.theme && (
+                <Select
+                  label="Subtema"
+                  value={config.subtopic || ''}
+                  onChange={(value) =>
+                    setConfig({ ...config, subtopic: value || undefined })
+                  }
+                >
+                  <option value="">Todo el tema</option>
+                  {topics.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.topic}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </div>
+          )}
           <fieldset>
             <legend>Dificultad</legend>
             <div className="seg difficulties">
-              {[...levels, 'Mixto'].map((l, i) => (
+              {[...levels, 'Mixto'].map((l) => (
                 <button
                   key={l}
                   aria-pressed={config.difficulty === l}
-                  className={config.difficulty === l ? 'active' : ''}
                   onClick={() =>
                     setConfig({ ...config, difficulty: l as Difficulty })
                   }
                 >
-                  {i === 3 ? (
-                    <Layers size={15} />
-                  ) : (
-                    <span className="bars" aria-hidden="true">
-                      {[0, 1, 2].map((n) => (
-                        <i
-                          key={n}
-                          style={{
-                            height: 5 + 3 * n,
-                            opacity: n <= i ? 1 : 0.22,
-                          }}
-                        />
-                      ))}
-                    </span>
-                  )}
                   {l}
                 </button>
               ))}
@@ -175,34 +202,30 @@ export function Setup({
           </fieldset>
         </section>
         <aside className="panel summary">
-          <div className="summary-top">
-            <span className="eyebrow">
-              <span className="tiny-line" /> TU SESIÓN
-            </span>
-            <Shapes size={22} />
+          <h2>Resumen</h2>
+          <dl>
+            {summary.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {isExam && (
+            <p className="exam-format">
+              {config.course === 'MAE'
+                ? 'Sección A de respuesta corta y sección B de respuesta extensa.'
+                : config.paper === 1
+                  ? 'Preguntas de respuesta corta.'
+                  : 'Problemas de respuesta extensa.'}
+            </p>
+          )}
+          <div className="time-note">
+            <Clock3 size={16} />
+            {isExam ? '90 minutos · 80 puntos' : 'Sin límite de tiempo'}
           </div>
-          <h2>{isExam ? 'Simulacro de examen' : 'Ejercicio individual'}</h2>
-          <p>
-            {isExam
-              ? 'Resuelve una prueba cronometrada y revisa tus soluciones al finalizar.'
-              : 'Resuelve un problema por incisos y consulta la solución paso a paso.'}
-          </p>
-          <div className="rows">
-            {row('Asignatura', config.course + ' NM', <GraduationCap />)}
-            {row('Prueba', 'Prueba ' + config.paper, <FileStack />)}
-            {row('Dificultad', config.difficulty, <Layers />)}
-            {row(
-              'Calculadora',
-              calc(config) ? 'Permitida' : 'Sin calculadora',
-              <Calculator />,
-            )}
-            {isExam
-              ? row('Duración', '90 min · 80 puntos', <Timer />)
-              : row('Tiempo', 'Sin límite', <Clock3 />)}
-          </div>
-          <button className="primary" onClick={begin}>
-            {isExam ? <ListChecks size={18} /> : <Sparkles size={18} />}{' '}
-            {isExam ? 'Iniciar simulacro' : 'Generar ejercicio'}
+          <button className="primary start" onClick={begin}>
+            {isExam ? 'Empezar simulacro' : 'Empezar práctica'}
             <ArrowRight size={18} />
           </button>
         </aside>

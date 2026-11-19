@@ -25,10 +25,12 @@ export function readNumber(raw: string): number | null {
       return v
     }
     if (t === 'pi') return Math.PI
-    if (t === 'sqrt' || t === 'raiz') {
+    if (['sqrt', 'raiz', 'ln', 'log'].includes(t)) {
       if (!take('(')) throw Error()
       const v = sum()
       if (!take(')')) throw Error()
+      if (t === 'ln') return Math.log(v)
+      if (t === 'log') return Math.log10(v)
       return Math.sqrt(v)
     }
     if (!t || !/^\d|^\.\d/.test(t)) throw Error()
@@ -45,7 +47,8 @@ export function readNumber(raw: string): number | null {
     while (i < tokens.length) {
       if (take('*')) v *= unary()
       else if (take('/')) v /= unary()
-      else if (['(', 'pi', 'sqrt', 'raiz'].includes(peek())) v *= unary()
+      else if (['(', 'pi', 'sqrt', 'raiz', 'ln', 'log'].includes(peek()))
+        v *= unary()
       else break
     }
     return v

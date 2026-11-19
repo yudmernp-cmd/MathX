@@ -1,4 +1,4 @@
-import { duration, exercise, exam, signature } from './engine'
+import { duration, exercise, exam, signature, practiceFamilies } from './engine'
 import type { Config, Problem } from './model'
 import { correct } from './grading'
 export type Mode = 'Ejercicios' | 'Simulacros'
@@ -7,6 +7,7 @@ export type Run = {
   mode: Mode
   seed: number
   questions: Problem[]
+  ordinal?: number
   index: number
   answers: Record<string, string>
   notes: Record<string, string>
@@ -25,19 +26,41 @@ export function start(
 ): Run {
   let questions: Problem[]
   if (mode === 'Ejercicios') {
-    let q = exercise(config, seed)
-    const recent = history.slice(-5).map((s) => s.split('-')[0])
-    for (
-      let attempt = 0;
-      attempt < 200 &&
-      (recent.includes(q.family) || history.slice(-10).includes(signature(q)));
-      attempt++
-    ) {
-      seed = (seed + 1) >>> 0
-      q = exercise(config, seed)
+    const recent = history.slice(-10).map((entry) => entry.split(':'))
+    const variants = recent.map(([id]) => id)
+    const familyIds = variants.map((id) => id.split('-')[0])
+    const count = practiceFamilies(config).length
+    const lastFamilies =
+      count > 1 ? familyIds.slice(-Math.min(5, count - 1)) : []
+    const lastVariants = variants.slice(-Math.min(10, 2 * count - 1))
+    const cycle = recent.slice(-2).map(([, level]) => level)
+    let best = exercise(config, seed),
+      bestSeed = seed,
+      bestPenalty = Infinity
+    for (let i = 0; i < 96; i++) {
+      const candidateSeed = (seed + i) >>> 0
+      const q = i ? exercise(config, candidateSeed) : best
+      const repeatedLevel =
+        config.difficulty === 'Mixto' && cycle.includes(q.level)
+      const penalty =
+        Number(repeatedLevel) * 100 +
+        (lastFamilies.lastIndexOf(q.family) + 1) * 12 +
+        lastVariants.lastIndexOf(signature(q)) +
+        1
+      if (penalty < bestPenalty) {
+        best = q
+        bestSeed = candidateSeed
+        bestPenalty = penalty
+      }
+      if (penalty === 0) break
     }
-    questions = [q]
-  } else questions = exam(config, seed)
+    seed = bestSeed
+    questions = [best]
+  } else {
+    const { course, paper, difficulty } = config
+    config = { course, paper, difficulty }
+    questions = exam(config, seed)
+  }
   return {
     config,
     mode,

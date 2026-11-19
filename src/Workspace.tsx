@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Clock3,
   FileText,
-  RotateCw,
   BookOpen,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -78,7 +77,9 @@ export function Workspace({ run, change, home, another }: Props) {
           <div className="work-meta">
             <span>
               <Calculator size={15} />
-              {calc(run.config) ? 'Calculadora permitida' : 'Sin calculadora'}
+              {calc(run.config)
+                ? 'Calculadora gráfica requerida'
+                : 'Sin calculadora'}
             </span>
             <span>{run.config.difficulty}</span>
           </div>
@@ -120,7 +121,7 @@ export function Workspace({ run, change, home, another }: Props) {
         <section className="panel question">
           <div className="qmeta">
             <span className="eyebrow">
-              {sim ? 'PREGUNTA ' + (run.index + 1) : 'PROBLEMA'}
+              {'PREGUNTA ' + (sim ? run.index + 1 : run.ordinal || 1)}
               {sim && run.config.course === 'MAE'
                 ? ' · SECCIÓN ' + (run.index < 6 ? 'A' : 'B')
                 : ''}
@@ -129,6 +130,7 @@ export function Workspace({ run, change, home, another }: Props) {
               {points(q)} puntos · {q.level}
             </span>
           </div>
+          {q.theme && <p className="question-theme">{q.theme}</p>}
           <h2>{q.topic}</h2>
           <p className="stem">
             <MathText text={q.stem} />
@@ -150,7 +152,7 @@ export function Workspace({ run, change, home, another }: Props) {
             return (
               <div key={id} className="part">
                 <div className="prompt">
-                  <b>{letter})</b>
+                  <b>({letter})</b>
                   <label htmlFor={'answer' + id}>
                     <MathText text={p.ask} />
                   </label>
@@ -260,8 +262,7 @@ export function Workspace({ run, change, home, another }: Props) {
                 </button>
               )}
               <button className="secondary" onClick={another}>
-                <RotateCw size={16} />
-                Otro ejercicio
+                Siguiente ejercicio <ArrowRight size={16} />
               </button>
             </div>
           ) : (

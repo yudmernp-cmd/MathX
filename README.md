@@ -20,11 +20,13 @@ npm run preview
 Playwright utiliza Chromium en /usr/bin/chromium cuando está disponible. En otro equipo instala el navegador con `npx playwright install chromium` o indica el ejecutable mediante `CHROMIUM_PATH`. La suite de navegador arranca una vista previa de dist. Para probar una instalación pública, configura `MATHX_TEST_URL` con su URL y ejecuta la misma suite.
 
 ## Motor y evaluación
+En ejercicios se puede seleccionar un tema completo o uno de los subtemas disponibles para la asignatura y prueba. Los controles y el generador comparten el mismo catálogo. La selección Mixto distribuye los niveles en la práctica continuada. Los simulacros recorren los cinco temas con un presupuesto de puntos fijo. La clasificación de dificultad y el reparto de preguntas entre secciones son decisiones de práctica de MathX.
+
 Las familias de src/math definen su curso, restricciones de muestreo, contexto, incógnitas, dependencias, pasos y criterios. Los parámetros se eligen en intervalos discretos que garantizan denominadores positivos, grupos no vacíos y dominios válidos. Cada estructura parte de datos directos o inversos. El nivel básico incorpora ayudas y los niveles superiores incluyen preguntas de combinación o inversión. La semilla mostrada y la configuración reproducen la generación de la misma versión mediante `exercise(config, seed)` o `exam(config, seed)`.
 
 El ensamblador selecciona prefijos de incisos que conservan sus dependencias y baremos. Busca por suma exacta dentro de cada sección. MAI P1 tiene 12 preguntas cortas. MAI P2 tiene seis extensas. MAE combina seis preguntas cortas en A con tres extensas en B. Todos los modelos duran 90 minutos y suman 80 puntos.
 
-Cada respuesta numérica correcta verifica un punto de resultado. Las expresiones admiten operaciones aritméticas, potencias, raíces y pi. Los puntos de método quedan para revisión cuando hay procedimiento escrito. El razonamiento abierto se contrasta con la solución y sus criterios. Los espacios en blanco no suman puntos. El temporizador usa una hora absoluta de vencimiento. La sesión y la selección reciente se conservan en sessionStorage de la pestaña.
+Cada respuesta numérica correcta verifica un punto de resultado. Las expresiones admiten operaciones aritméticas, potencias, raíces, pi y logaritmos (ln natural y log decimal). Los puntos de método quedan para revisión cuando hay procedimiento escrito. El razonamiento abierto se contrasta con la solución y sus criterios. Los espacios en blanco no suman puntos. El temporizador usa una hora absoluta de vencimiento. La sesión y la selección reciente se conservan en sessionStorage de la pestaña.
 
 Las pruebas incluyen recálculos independientes, enumeraciones de sucesos, ajuste por mínimos cuadrados, integración y comprobación de combinaciones de familias y semillas. Consulta docs/fuentes.md y docs/fuentes.csv para el alcance académico verificado.
 

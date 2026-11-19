@@ -3,7 +3,8 @@ import { fmt, numberPart as n, review, type Family } from './model'
 export const analysisFamilies: Family[] = [
   {
     id: 'deposito',
-    topic: 'Cálculo y optimización',
+    theme: 'Cálculo',
+    topic: 'Optimización y tasas de cambio',
     courses: ['MAI', 'MAE'],
     make(r, v, level) {
       const k = r(3, 9),
@@ -20,7 +21,7 @@ export const analysisFamilies: Family[] = [
                 'Calcula el volumen tras un minuto.',
                 at(1),
                 [
-                  `Integra la tasa: $V(t)=C+${b}t-${a}t^2$. El volumen inicial fija $C=${c}$. Evalúa en 1.`,
+                  `La tasa es lineal. El cambio de volumen en el primer minuto es el área del trapecio de alturas ${b} y ${b - 2 * a}, con base 1. Suma este cambio a los ${c} litros iniciales.`,
                 ],
                 ['Acumula el cambio a partir del volumen inicial.'],
               )
@@ -93,6 +94,7 @@ export const analysisFamilies: Family[] = [
   },
   {
     id: 'sucesion',
+    theme: 'Número y álgebra',
     topic: 'Sucesiones aritméticas',
     courses: ['MAE'],
     make(r, v, level) {
@@ -178,6 +180,7 @@ export const analysisFamilies: Family[] = [
   },
   {
     id: 'parabola',
+    theme: 'Funciones',
     topic: 'Funciones cuadráticas',
     courses: ['MAE'],
     make(r, v, level) {
@@ -240,15 +243,16 @@ export const analysisFamilies: Family[] = [
             ],
           ),
           n(
-            'Calcula el área encerrada entre la parábola y el eje horizontal.',
-            (4 * a * h ** 3) / 3,
+            `Se traslada la curva verticalmente. Sus nuevos ceros distan ${2 * (h + 1)} unidades entre sí. Determina cuántas unidades se ha desplazado hacia arriba.`,
+            a * (2 * h + 1),
             [
-              `Integra entre ${lo} y ${hi}. La simetría permite usar $2\\int_0^{${h}}(${top}-${a}u^2)\\,du$. Evalúa $2[${top}u-${a}u^3/3]$ entre 0 y ${h}.`,
+              `El eje de simetría sigue en $x=${k}$. Los nuevos ceros están a ${h + 1} unidades del eje.`,
+              `Para anular la ordenada a esa distancia se necesita altura de vértice $${a} · ${h + 1}^2$. Resta la altura original, ${top}.`,
             ],
             [
-              'Identifica los límites.',
-              'Plantea área bajo la curva positiva.',
-              'Obtiene y evalúa una primitiva.',
+              'Conserva el eje de simetría.',
+              'Relaciona la semidistancia con el nuevo máximo.',
+              'Calcula la traslación.',
             ],
           ),
           review(

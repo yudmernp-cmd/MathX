@@ -27,52 +27,6 @@ export function MathText({ text }: { text: string }) {
   )
 }
 const linePath = line<[number, number]>()
-// Isometric wireframe of a sampled, exponentially damped radial cosine.
-function project(x: number, y: number): [number, number] {
-  const radius = x * x + y * y
-  const z = Math.cos(2.15 * Math.sqrt(radius)) * Math.exp(-0.41 * radius)
-  return [222 + 37 * x + 32 * y, 134 + 12 * x - 15 * y - 88 * z]
-}
-export function Surface() {
-  const grid = Array.from({ length: 31 }, (_, i) => (i - 15) / 5)
-  const domain = Array.from({ length: 91 }, (_, i) => (i - 45) / 15)
-  return (
-    <svg className="surface" viewBox="0 0 445 245" aria-hidden="true">
-      <defs>
-        <linearGradient id="mesh" x2=".75" y2="1">
-          <stop stopColor="#e5ffa8" />
-          <stop offset=".58" stopColor="#9fd798" />
-          <stop offset="1" stopColor="#479f87" />
-        </linearGradient>
-      </defs>
-      <g fill="none" stroke="#a6deb8" opacity=".29" strokeWidth=".7">
-        <path
-          d="M17 161 397 228M106 225 402 80M222 116V12"
-          strokeDasharray="3 5"
-        />
-      </g>
-      <g stroke="url(#mesh)" fill="none" strokeWidth="1.05">
-        {grid.map((x, i) => (
-          <g key={i}>
-            <path d={linePath(domain.map((y) => project(x, y))) || ''} />
-            <path d={linePath(domain.map((y) => project(y, x))) || ''} />
-          </g>
-        ))}
-      </g>
-      <g fill="#b9dac1" fontSize="11" fontFamily="monospace">
-        <text x="401" y="233">
-          x
-        </text>
-        <text x="402" y="77">
-          y
-        </text>
-        <text x="229" y="19">
-          z
-        </text>
-      </g>
-    </svg>
-  )
-}
 export function DataFigure({ data }: { data: Figure }) {
   if (data.type === 'table')
     return (

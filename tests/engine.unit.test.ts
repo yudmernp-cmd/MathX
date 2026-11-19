@@ -14,6 +14,8 @@ describe('Montaje de pruebas y cobertura', () => {
           for (let seed = 0; seed < 250; seed++) {
             const qs = exam(c, seed),
               marks = qs.map(points)
+            if (new Set(qs.map((q) => q.theme)).size !== 5)
+              throw Error('Falta un tema del programa')
             if (marks.reduce((a, b) => a + b, 0) !== 80)
               throw Error('Total distinto de 80')
             if (
@@ -106,6 +108,8 @@ describe('Corrección segura', () => {
     ['2^-2', 0.25],
     ['2^3^2', 512],
     ['2π', 2 * Math.PI],
+    ['ln(9)/ln(3)', 2],
+    ['log(1000)', 3],
     ['1e-3', 0.001],
   ] as const)('%s', (s, v) => expect(readNumber(s)).toBeCloseTo(v, 12))
   it.each([

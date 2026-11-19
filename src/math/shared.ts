@@ -3,6 +3,7 @@ import { fmt, numberPart as n, review, type Family } from './model'
 export const shared: Family[] = [
   {
     id: 'muestras',
+    theme: 'Estadística y probabilidad',
     topic: 'Estadística descriptiva',
     courses: ['MAI', 'MAE'],
     make(r, v, level) {
@@ -101,6 +102,7 @@ export const shared: Family[] = [
   },
   {
     id: 'condicional',
+    theme: 'Estadística y probabilidad',
     topic: 'Probabilidad condicionada',
     courses: ['MAI', 'MAE'],
     make(r, v, level) {
@@ -199,7 +201,8 @@ export const shared: Family[] = [
   },
   {
     id: 'triangulos',
-    topic: 'Geometría y trigonometría',
+    theme: 'Geometría y trigonometría',
+    topic: 'Triángulos rectángulos y semejanza',
     courses: ['MAI', 'MAE'],
     make(r, v, level) {
       const k = r(2, 7),

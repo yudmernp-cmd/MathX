@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { GraduationCap } from 'lucide-react'
 import 'katex/dist/katex.min.css'
 import './style.css'
 import { Setup } from './Setup'
@@ -14,6 +13,7 @@ function App() {
     run?.config || { course: 'MAI', paper: 1, difficulty: 'Mixto' },
   )
   const [mode, setMode] = useState<Mode>(run?.mode || 'Ejercicios')
+  const [error, setError] = useState('')
   const [storageFailed, setStorageFailed] = useState(false)
   useEffect(() => {
     try {
@@ -35,7 +35,15 @@ function App() {
     [],
   )
   function begin() {
-    const historyKey = 'mathx.recent.' + config.course + config.paper
+    setError('')
+    const historyKey = [
+      'mathx.recent',
+      config.course,
+      config.paper,
+      config.theme || '',
+      config.subtopic || '',
+      config.difficulty,
+    ].join('.')
     let history: string[] = []
     try {
       const stored = JSON.parse(sessionStorage.getItem(historyKey) || '[]')
@@ -44,17 +52,31 @@ function App() {
     } catch {
       /* storage may be disabled */
     }
-    const next = start(
-      config,
-      mode,
-      crypto.getRandomValues(new Uint32Array(1))[0],
-      history,
-    )
+    let next: Run
+    try {
+      next = start(
+        config,
+        mode,
+        crypto.getRandomValues(new Uint32Array(1))[0],
+        history,
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'No se pudo generar la sesión.',
+      )
+      return
+    }
+    next.ordinal = run?.mode === 'Ejercicios' ? (run.ordinal || 1) + 1 : 1
     if (mode === 'Ejercicios')
       try {
         sessionStorage.setItem(
           historyKey,
-          JSON.stringify([...history, signature(next.questions[0])].slice(-12)),
+          JSON.stringify(
+            [
+              ...history,
+              signature(next.questions[0]) + ':' + next.questions[0].level,
+            ].slice(-12),
+          ),
         )
       } catch {
         /* session state remains in memory */
@@ -67,17 +89,17 @@ function App() {
       <header>
         <div className="shell header-row">
           <div className="brand">
-            <img src="/mathx.svg" alt="" />
             Math<span>X</span>
           </div>
-          <span className="header-divider" />
-          <span className="header-label">Espacio de práctica</span>
-          <span className="header-course">
-            <GraduationCap size={18} /> Bachillerato Internacional
-          </span>
+          <span className="header-label">Matemáticas IB · Nivel Medio</span>
         </div>
       </header>
       <main className="shell">
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {storageFailed && (
           <p role="status">
             El navegador impide guardar la sesión. Mantén abierta esta página
@@ -90,7 +112,10 @@ function App() {
             run={run}
             change={change}
             another={begin}
-            home={() => setRun(null)}
+            home={() => {
+              setRun(null)
+              setError('')
+            }}
           />
         ) : (
           <Setup

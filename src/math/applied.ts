@@ -3,6 +3,7 @@ import { fmt, numberPart as n, review, type Family } from './model'
 export const applied: Family[] = [
   {
     id: 'tarifas',
+    theme: 'Funciones',
     topic: 'Modelos lineales',
     courses: ['MAI'],
     make(r, v, level) {
@@ -116,6 +117,7 @@ export const applied: Family[] = [
   },
   {
     id: 'capital',
+    theme: 'Número y álgebra',
     topic: 'Matemática financiera',
     courses: ['MAI'],
     make(r, v, level) {

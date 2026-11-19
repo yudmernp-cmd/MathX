@@ -3,7 +3,21 @@ export type Paper = 1 | 2
 export type Level = 'Básico' | 'Intermedio' | 'Avanzado'
 export const levels: Level[] = ['Básico', 'Intermedio', 'Avanzado']
 export type Difficulty = Level | 'Mixto'
-export type Config = { course: Course; paper: Paper; difficulty: Difficulty }
+export const themes = [
+  'Número y álgebra',
+  'Funciones',
+  'Geometría y trigonometría',
+  'Estadística y probabilidad',
+  'Cálculo',
+] as const
+export type Theme = (typeof themes)[number]
+export type Config = {
+  course: Course
+  paper: Paper
+  difficulty: Difficulty
+  theme?: Theme
+  subtopic?: string
+}
 export type Part = {
   ask: string
   value: number | null
@@ -16,6 +30,7 @@ export type Figure =
   | { type: 'graph'; x: string; y: string; points: [number, number][] }
 export type Problem = {
   family: string
+  theme: Theme
   variant: number
   topic: string
   level: Level
@@ -48,8 +63,9 @@ export type Context = { stem: string; figure?: Figure; tasks: Part[] }
 export type Family = {
   id: string
   topic: string
+  theme: Theme
   courses: Course[]
-  make: (r: Random, variant: number, level: Level) => Context
+  make: (r: Random, variant: number, level: Level, config?: Config) => Context
 }
 // Every criterion is worth one mark. The last criterion of a closed part is its final answer.
 export function numberPart(
