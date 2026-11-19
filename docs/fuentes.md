@@ -1,16 +1,26 @@
 # Investigación de Matemáticas IB de Nivel Medio
 
+## Corrección tras revisar el inventario aportado
+
+El archivo `fuentes.txt` sí contiene más enlaces que los que había usado en la primera revisión. Los enlaces de Scribd y Studocu son páginas HTML de terceros. Al consultarlos desde este entorno, Studocu respondió 403 y Scribd entregó la página del servicio, no un PDF abierto completo. Por tanto, no los cuento como exámenes leídos gratuitamente.
+
+Hay dos enlaces directos en el inventario que devuelven PDF sin iniciar sesión. El de Publit contiene un examen de MAE NM de mayo de 2023, pero el propio PDF conserva una licencia del IB que prohíbe el uso por aplicaciones y plataformas de preparación de terceros. El PDF de MAI P1 enlazado bajo `subject-guides-documents` también contiene una licencia del IB con esa restricción. Sí los comprobé como documentos accesibles y los usé para confirmar rasgos generales de formato. No extraeré ni transformaré sus preguntas en MathX.
+
+Los dos PDF de muestras del IB enlazados más abajo son públicos y sí fueron descargados y leídos. Se usan junto con los dos PDF directos del inventario únicamente para estudiar organización, duración, calculadora, dependencia entre incisos y convenciones de corrección. MathX genera enunciados y datos originales. El hecho de que un documento pueda abrirse sin pago no concede por sí solo permiso para reproducir su contenido o incorporarlo a una aplicación.
+
 Consulta del 19 de noviembre de 2026. El alcance comprende MAI y MAE, pruebas 1 y 2, en las convocatorias de mayo y noviembre de 2021 a 2026. El acceso público al IB funcionó en esta revisión, después del rechazo del proxy registrado en el primer intento.
 
 ## Qué se pudo verificar
 
 | Evidencia | Resultado | Alcance de la verificación |
 |---|---|---|
-| Exámenes de convocatoria y esquemas completos | 0 cuadernillos y 0 esquemas leídos | No se obtuvieron los textos íntegros de una convocatoria concreta por las vías públicas consultadas. |
-| Fichas de convocatoria | 44 de las 48 combinaciones de convocatoria, asignatura y prueba | La tienda identifica el cuadernillo y el esquema para las cuatro pruebas en cada una de las 11 convocatorias entre mayo de 2021 y mayo de 2026. |
+| Exámenes de convocatoria y esquemas completos | 0 cuadernillos y 0 esquemas de convocatoria leídos para MathX | Los enlaces de terceros no proporcionaron un PDF abierto verificable. Los dos PDF directos tienen una licencia que prohíbe el uso por plataformas de preparación. |
+| Fichas de convocatoria | Referencias comerciales, no contenido leído | La tienda identifica materiales de las convocatorias, pero las fichas no permiten estudiar preguntas ni esquemas sin adquirir el material. |
 | Noviembre de 2026 | 4 pruebas en el calendario oficial | El IB programó ambas P1 para el 9 de noviembre por la tarde y ambas P2 para el 10 por la mañana, de 90 minutos cada una. No se localizó la ficha del cuadernillo ni la del esquema en el catálogo consultado. |
 | Modelos oficiales de NM | 4 cuadernillos y sus 4 esquemas leídos en 2 PDF | Son modelos en inglés identificados como *specimen* para el programa con primeras evaluaciones en 2021. No llevan convocatoria de mayo o noviembre. |
 | Resúmenes oficiales de asignatura | 2 PDF consultados | Se usaron las columnas SL de los resúmenes que identifican 2021 como primera evaluación. La página del IB también enlaza materiales para la primera evaluación de 2029. |
+
+Los dos PDF directos aportados permitieron confirmar ejemplos de convocatoria concreta. El MAE P1 de mayo de 2023 indica 90 minutos, sin calculadora, 80 puntos y tres preguntas de sección A que encadenan punto medio, pendiente y ecuación de una recta perpendicular. El MAI P1 de mayo de 2025 indica 90 minutos, calculadora gráfica, 80 puntos y respuestas cortas con trabajo justificativo. Estas observaciones se incorporan como patrones de diseño. No se copiaron preguntas, datos ni redacciones.
 
 ### Inventario por convocatoria
 
