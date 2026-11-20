@@ -10,8 +10,8 @@ export function referenceAnswers(
   l: Level,
   config?: Config,
 ): number[] {
-  const easy = l === 'Básico',
-    hard = l === 'Avanzado'
+  const easy = l === 'Fácil',
+    hard = l === 'Difícil'
   switch (id) {
     case 'tarifas': {
       const b = r(8, 20),
@@ -122,33 +122,6 @@ export function referenceAnswers(
         (max - A[1]) / (index - 1),
       ]
     }
-    case 'sucesion': {
-      const a = r(2, 8),
-        d = r(2, 6),
-        k = r(4, 9),
-        s = [a]
-      for (let i = 0; i < 25; i++) s.push(s.at(-1)! + d)
-      return [
-        v ? (s[k - 1] - s[2]) / (k - 3) : easy ? s[k - 1] : k,
-        hard ? k + 2 : sum(s.slice(0, k)),
-        sum(s.slice(2, 2 + k)),
-        sum(s.filter((_, i) => i % 2 === 0).slice(0, k)),
-      ]
-    }
-    case 'parabola': {
-      const k = r(3, 9),
-        h = r(2, k - 1),
-        a = r(1, 4),
-        lo = k - h,
-        hi = k + h,
-        f = (x: number) => -a * (x - lo) * (x - hi)
-      return [
-        v ? (f(2) - 2 * f(1) + f(0)) / 2 : easy ? k : lo,
-        hard ? 2 : f(0),
-        f(k - 1),
-        -f(lo - 1),
-      ]
-    }
     case 'ajuste': {
       const m = r(3, 8),
         b = r(10, 18),
@@ -203,12 +176,7 @@ export function referenceAnswers(
       const amplitude = (measured[1] - measured[0]) / (factor - 1)
       const offset = measured[0] - amplitude
       const target =
-        config && (config.course === 'MAI' || config.paper === 2)
-          ? c +
-            (v ? Math.floor(values[0] / (base + 1)) : values[0] * (base + 1))
-          : v && hard
-            ? c + values[0] / ratio
-            : measured[3]
+        c + (v ? Math.floor(values[0] / (base + 1)) : values[0] * (base + 1))
       // Bisect on the observed interval instead of inverting with logarithms.
       let low = -2,
         high = 4
@@ -266,19 +234,6 @@ export function referenceAnswers(
         (C[1] + 2 + A[1]) / 2,
       ]
     }
-    case 'sectores': {
-      const radius = r(3, 9),
-        k = r(2, 4),
-        fraction = 1 / (Math.PI * k)
-      const arc = 2 * Math.PI * radius * fraction,
-        area = Math.PI * radius ** 2 * fraction
-      return [
-        v ? (2 * area) / arc : easy ? arc : arc + 2 * radius,
-        hard ? (2 * area) / (2 * radius) ** 2 : 3 * area,
-        area - Math.PI * (radius / 2) ** 2 * fraction,
-        (4 * area) / arc,
-      ]
-    }
     case 'tangentes': {
       const a = r(1, 4),
         t = r(2, 5),
@@ -322,24 +277,6 @@ export function referenceAnswers(
         (lo + hi) / 2 + 3 + (hi - mu) / 2,
       ]
     }
-    case 'movimiento': {
-      const a = r(2, 5),
-        k = r(2, 5),
-        start = r(8, 20),
-        end = 2 * k + 1
-      const speeds = range(end + 1).map((i) => a * (i - k))
-      const increments = range(end).map((i) => (speeds[i] + speeds[i + 1]) / 2)
-      const positions = speeds.map(
-        (_, i) => start + sum(increments.slice(0, i)),
-      )
-      const total = sum(increments.map(Math.abs))
-      return [
-        v ? speeds.indexOf(0) : easy ? speeds[0] : Math.min(...positions),
-        hard ? positions.lastIndexOf(start) : positions[k + 1] - start,
-        total,
-        total / end,
-      ]
-    }
     case 'independencia': {
       const e = r(9, 18),
         d = r(2, 6),
@@ -354,6 +291,56 @@ export function referenceAnswers(
         hard ? chi : (cells[0] - expected) ** 2 / expected,
         sum(cells.map((o) => (2 * o - 2 * expected) ** 2 / (2 * expected))),
         cells[0] / row - cells[2] / (N - row),
+      ]
+    }
+    case 'prestamos': {
+      const months = 2 * r(6, 15),
+        rate = r(1, 3) / 200,
+        principal = 500 * r(8, 25),
+        given = 25 * r(8, 24)
+      const factor = (n: number) =>
+        range(n).reduce((z, i) => z + (1 + rate) ** (-i - 1), 0)
+      const C = v ? given : principal / factor(months),
+        P = v ? C * factor(months) : principal
+      let balance = P
+      for (let i = 0; i < months / 2; i++) balance += balance * rate - C
+      const changed = (balance - 2 * C) / factor(months / 2)
+      let remaining = balance - 2 * C,
+        interest = 0
+      for (let i = 0; i < months / 2; i++) {
+        interest += remaining * rate
+        remaining = remaining * (1 + rate) - changed
+      }
+      return [
+        v ? P : easy ? P * rate : C,
+        hard ? balance : months * C - P,
+        changed,
+        (months / 2) * C - balance - interest,
+      ]
+    }
+    case 'caudal': {
+      const h = r(2, 5),
+        a = 2 * r(2, 5),
+        b = a + 2 * r(2, 5),
+        c = 2 * r(1, 3),
+        initial = r(20, 40)
+      const flow = (t: number) =>
+        t <= h ? a + ((b - a) * t) / h : b + ((c - b) * (t - h)) / h
+      const integral = (end: number) =>
+        Array.from(
+          { length: 4 * end },
+          (_, i) => flow((i + 0.5) / 4) / 4,
+        ).reduce((x, y) => x + y, 0)
+      const total = integral(2 * h)
+      return [
+        v && !easy
+          ? ((2 * total) / h - a - c) / 2
+          : easy
+            ? integral(h) / h
+            : integral(h),
+        hard ? total / (2 * h) : initial + total,
+        initial + integral(1.5 * h),
+        total - 2 * h,
       ]
     }
     default:

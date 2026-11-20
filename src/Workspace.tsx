@@ -13,7 +13,7 @@ import {
 import { useEffect, useState } from 'react'
 import type { Run } from './math/session'
 import { key, score } from './math/session'
-import { calc, points } from './math/model'
+import { partMarks, points } from './math/model'
 import { correct, readNumber } from './math/grading'
 import { MathText, DataFigure } from './Figures'
 type Props = {
@@ -77,11 +77,9 @@ export function Workspace({ run, change, home, another }: Props) {
           <div className="work-meta">
             <span>
               <Calculator size={15} />
-              {calc(run.config)
-                ? 'Calculadora gráfica requerida'
-                : 'Sin calculadora'}
+              Calculadora gráfica requerida
             </span>
-            <span>{run.config.difficulty}</span>
+            {!sim && <span>{run.config.difficulty}</span>}
           </div>
         </div>
         {sim && !run.finished && (
@@ -108,7 +106,9 @@ export function Workspace({ run, change, home, another }: Props) {
                 : 'puntos verificados'}{' '}
               · {scores.pending}{' '}
               {scores.pending === 1 ? 'pendiente' : 'pendientes'} de revisión ·{' '}
-              {scores.total} puntos posibles.
+              {scores.total} puntos posibles.{' '}
+              {scores.withoutScheme > 0 &&
+                `${scores.withoutScheme} puntos sin esquema de calificación.`}
             </p>
             <small>
               La comprobación automática valora el resultado numérico. Revisa el
@@ -122,25 +122,46 @@ export function Workspace({ run, change, home, another }: Props) {
           <div className="qmeta">
             <span className="eyebrow">
               {'PREGUNTA ' + (sim ? run.index + 1 : run.ordinal || 1)}
-              {sim && run.config.course === 'MAE'
-                ? ' · SECCIÓN ' + (run.index < 6 ? 'A' : 'B')
-                : ''}
             </span>
             <span>
-              {points(q)} puntos · {q.level}
+              {q.origin === 'real' ? 'Pregunta de examen' : 'Original de MathX'}{' '}
+              · {points(q)} puntos · {q.level}
             </span>
           </div>
           {q.theme && <p className="question-theme">{q.theme}</p>}
           <h2>{q.topic}</h2>
-          <p className="stem">
+          <p className="stem preserve-lines">
             <MathText text={q.stem} />
           </p>
+          {q.origin === 'real' && q.provenance && (
+            <p className="hint">
+              {[
+                q.provenance.session,
+                q.provenance.year,
+                'Pregunta ' + q.provenance.number,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          )}
+          {q.assets
+            ?.filter((a) => a.part === -1)
+            .map((a) => (
+              <img
+                className="exam-image"
+                key={a.id}
+                src={'/api/classroom?action=asset&id=' + a.id}
+                alt={a.alt}
+              />
+            ))}
           {q.figure && <DataFigure data={q.figure} />}
-          <p className="hint">
-            Da resultados exactos o redondeados a tres cifras significativas.
-            Puedes usar fracciones y expresiones como √(2). Escribe el
-            procedimiento para revisar los puntos de método.
-          </p>
+          {q.origin !== 'real' && (
+            <p className="hint">
+              Da resultados exactos o redondeados a tres cifras significativas.
+              Puedes usar fracciones y expresiones como √(2). Escribe el
+              procedimiento para revisar los puntos de método.
+            </p>
+          )}
           {q.parts.map((p, j) => {
             const id = key(run.index, j),
               letter = String.fromCharCode(97 + j),
@@ -152,13 +173,23 @@ export function Workspace({ run, change, home, another }: Props) {
             return (
               <div key={id} className="part">
                 <div className="prompt">
-                  <b>({letter})</b>
-                  <label htmlFor={'answer' + id}>
+                  <b>{p.label ?? '(' + letter + ')'}</b>
+                  <label className="preserve-lines" htmlFor={'answer' + id}>
                     <MathText text={p.ask} />
                   </label>
-                  <small>{p.rubric.length} pt</small>
+                  {partMarks(p) > 0 && <small>{partMarks(p)} pt</small>}
                 </div>
-                {p.value === null ? (
+                {q.assets
+                  ?.filter((a) => a.part === j)
+                  .map((a) => (
+                    <img
+                      className="exam-image"
+                      key={a.id}
+                      src={'/api/classroom?action=asset&id=' + a.id}
+                      alt={a.alt}
+                    />
+                  ))}
+                {partMarks(p) === 0 ? null : p.value === null ? (
                   <textarea
                     id={'answer' + id}
                     value={val}
@@ -192,7 +223,7 @@ export function Workspace({ run, change, home, another }: Props) {
                     </details>
                   </>
                 )}
-                {locked && (
+                {locked && partMarks(p) > 0 && (
                   <div
                     className={
                       'feedback ' +
@@ -204,7 +235,9 @@ export function Workspace({ run, change, home, another }: Props) {
                     {!val.trim()
                       ? 'Sin respuesta'
                       : p.value === null
-                        ? 'Revisión con criterios'
+                        ? q.scheme === 'sin esquema'
+                          ? 'Sin esquema de calificación'
+                          : 'Pendiente de revisión humana'
                         : correct(val, p.value, p.percentage)
                           ? 'Resultado correcto · 1 punto verificado'
                           : readNumber(val) === null
@@ -214,16 +247,28 @@ export function Workspace({ run, change, home, another }: Props) {
                 )}
                 {showSolutions && (
                   <div className="solution">
-                    <strong>Solución</strong>
+                    <strong>
+                      {q.scheme === 'sin esquema'
+                        ? 'Sin esquema de calificación disponible'
+                        : 'Solución'}
+                    </strong>
                     {p.steps.map((step, i) => (
                       <p key={i}>
                         <MathText text={step} />
                       </p>
                     ))}
-                    <strong>Criterios · 1 punto por criterio</strong>
+                    {!!p.rubric.length && (
+                      <strong>
+                        {q.origin === 'real'
+                          ? 'Criterios de revisión'
+                          : 'Criterios · 1 punto por criterio'}
+                      </strong>
+                    )}
                     <ul>
                       {p.rubric.map((x) => (
-                        <li key={x}>{x}</li>
+                        <li key={x}>
+                          <MathText text={x} />
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -320,7 +365,15 @@ export function Workspace({ run, change, home, another }: Props) {
               ))}
             </div>
             <p>
-              Pregunta {run.index + 1} de {run.questions.length} · 80 puntos
+              {
+                run.questions.filter((item, i) =>
+                  item.parts.every(
+                    (part, j) =>
+                      partMarks(part) === 0 || run.answers[key(i, j)]?.trim(),
+                  ),
+                ).length
+              }{' '}
+              de {run.questions.length} preguntas completadas · 80 puntos
             </p>
             {!run.finished && (
               <button className="secondary" onClick={() => setDialog('finish')}>

@@ -5,7 +5,7 @@ export const shared: Family[] = [
     id: 'muestras',
     theme: 'Estadística y probabilidad',
     topic: 'Estadística descriptiva',
-    courses: ['MAI', 'MAE'],
+    courses: ['MAI'],
     make(r, v, level) {
       const m = r(8, 18),
         d = r(2, 5),
@@ -34,7 +34,7 @@ export const shared: Family[] = [
                 [`Resta las dos frecuencias conocidas a ${total}.`],
                 ['Usa la suma de frecuencias.'],
               )
-            : level === 'Básico'
+            : level === 'Fácil'
               ? n(
                   'Calcula el tamaño del grupo.',
                   total,
@@ -47,7 +47,7 @@ export const shared: Family[] = [
                   [`Multiplica $${a}/${total}$ por $${a - 1}/${total - 1}$.`],
                   ['Ajusta ambas cantidades tras la primera elección.'],
                 ),
-          level === 'Avanzado'
+          level === 'Difícil'
             ? n(
                 `Se incorpora un estudiante que esperó ${extra} minutos. Calcula la nueva media.`,
                 (m * total + extra) / (total + 1),
@@ -104,7 +104,7 @@ export const shared: Family[] = [
     id: 'condicional',
     theme: 'Estadística y probabilidad',
     topic: 'Probabilidad condicionada',
-    courses: ['MAI', 'MAE'],
+    courses: ['MAI'],
     make(r, v, level) {
       const a = r(2, 7),
         b = r(2, 6),
@@ -131,16 +131,16 @@ export const shared: Family[] = [
                 ['Usa el total de la tabla.'],
               )
             : n(
-                level === 'Básico'
+                level === 'Fácil'
                   ? 'Halla la probabilidad de que la persona use bicicleta.'
                   : 'Si usa bicicleta, halla la probabilidad de que asista por la mañana.',
-                level === 'Básico' ? yes / T : a / yes,
+                level === 'Fácil' ? yes / T : a / yes,
                 [
                   `Hay ${yes} ciclistas, de los cuales ${a} van por la mañana. Divide los casos favorables por el tamaño del grupo indicado.`,
                 ],
                 ['Elige el espacio muestral adecuado.'],
               ),
-          level === 'Avanzado'
+          level === 'Difícil'
             ? n(
                 'Se eligen dos personas distintas. Sabiendo que ambas usan bicicleta, halla la probabilidad de que tengan turnos distintos.',
                 (2 * a * c) / (yes * (yes - 1)),
@@ -203,7 +203,7 @@ export const shared: Family[] = [
     id: 'triangulos',
     theme: 'Geometría y trigonometría',
     topic: 'Triángulos rectángulos y semejanza',
-    courses: ['MAI', 'MAE'],
+    courses: ['MAI'],
     make(r, v, level) {
       const k = r(2, 7),
         [x, h, s] = r(0, 1) ? [3 * k, 4 * k, 5 * k] : [5 * k, 12 * k, 13 * k],
@@ -223,7 +223,7 @@ export const shared: Family[] = [
             ],
             ['Identifica la hipotenusa y aplica Pitágoras.'],
           ),
-          level === 'Avanzado'
+          level === 'Difícil'
             ? n(
                 'Un segundo cable paralelo parte de un punto a mitad de altura. ¿Qué fracción del área del triángulo original ocupa el nuevo triángulo con la base del mástil?',
                 1 / 4,
@@ -233,12 +233,12 @@ export const shared: Family[] = [
                 ['Reconoce la semejanza y escala el área.'],
               )
             : n(
-                level === 'Básico'
+                level === 'Fácil'
                   ? 'Calcula el área triangular delimitada, en metros cuadrados.'
                   : 'Halla el seno del ángulo del cable con el suelo.',
-                level === 'Básico' ? area : h / s,
+                level === 'Fácil' ? area : h / s,
                 [
-                  level === 'Básico'
+                  level === 'Fácil'
                     ? `Usa base por altura entre dos: $${x}·${h}/2$.`
                     : `Divide el cateto vertical por la hipotenusa: $${h}/${s}$.`,
                 ],

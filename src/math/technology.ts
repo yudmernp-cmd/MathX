@@ -37,7 +37,7 @@ export const regression: Family = {
               ],
               ['Ajusta y sobre x por mínimos cuadrados.'],
             ),
-        level === 'Avanzado'
+        level === 'Difícil'
           ? n(
               `¿Qué temperatura corresponde a una predicción de ${y(k + 3)} unidades según esta recta?`,
               k + 3,
@@ -94,7 +94,7 @@ export const binomial: Family = {
   id: 'lotes',
   theme: 'Estadística y probabilidad',
   topic: 'Distribución binomial',
-  courses: ['MAI', 'MAE'],
+  courses: ['MAI'],
   make(r, v, level) {
     const size = r(6, 12),
       p = r(2, 6) / 10,
@@ -112,18 +112,18 @@ export const binomial: Family = {
               ['Relaciona media, tamaño y probabilidad.'],
             )
           : n(
-              level === 'Básico'
+              level === 'Fácil'
                 ? 'Calcula el número esperado de detecciones por grupo.'
                 : 'Halla la probabilidad de cero detecciones en un grupo.',
-              level === 'Básico' ? size * p : one,
+              level === 'Fácil' ? size * p : one,
               [
-                level === 'Básico'
+                level === 'Fácil'
                   ? `Multiplica ${size} por ${fmt(p)}.`
                   : `Multiplica la probabilidad de fallo en las ${size} ocasiones independientes.`,
               ],
               ['Utiliza los parámetros de la binomial.'],
             ),
-        level === 'Avanzado'
+        level === 'Difícil'
           ? n(
               'Dado que hubo al menos una detección, calcula la probabilidad de que hubiera exactamente una.',
               exact1 / hit,
@@ -193,8 +193,8 @@ export const independence: Family = {
       [e - shift, e + shift],
     ]
     const chi = (4 * shift ** 2) / e
-    const easy = level === 'Básico',
-      hard = level === 'Avanzado'
+    const easy = level === 'Fácil',
+      hard = level === 'Difícil'
     const rows = observed.map((row, i) => [i ? 'B' : 'A', ...row])
     if (v) rows[0][1] = '?'
     return {
@@ -294,7 +294,7 @@ export const normal: Family = {
   id: 'normal',
   theme: 'Estadística y probabilidad',
   topic: 'Distribución normal',
-  courses: ['MAI', 'MAE'],
+  courses: ['MAI'],
   make(r, v, level) {
     const mu = r(55, 85),
       sigma = 2 * r(2, 5),
@@ -303,8 +303,8 @@ export const normal: Family = {
       tail = normalTails[i]
     const lower = mu - z * sigma,
       upper = mu + z * sigma
-    const easy = level === 'Básico',
-      hard = level === 'Avanzado'
+    const easy = level === 'Fácil',
+      hard = level === 'Difícil'
     const data = v
       ? `Dos lecturas, ${lower} y ${upper} segundos, tienen puntuaciones típicas $${-z}$ y $${z}$, respectivamente.`
       : `La media es ${mu} s y la desviación típica es ${sigma} s.`

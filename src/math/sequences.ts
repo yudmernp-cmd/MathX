@@ -2,17 +2,17 @@ import { numberPart as n, review, type Family } from './model'
 
 export const geometric: Family = {
   id: 'geometrica',
-  theme: 'Número y álgebra',
+  theme: 'Números y álgebra',
   topic: 'Sucesiones y series geométricas',
-  courses: ['MAI', 'MAE'],
+  courses: ['MAI'],
   make(r, v, level) {
     const a = r(2, 9),
       b = r(2, 3),
       k = r(3, 5)
     const u = (i: number) => a * b ** (i - 1)
     const sum = (i: number) => (a * (b ** i - 1)) / (b - 1)
-    const hard = level === 'Avanzado',
-      easy = level === 'Básico'
+    const hard = level === 'Difícil',
+      easy = level === 'Fácil'
     const givens = v
       ? `En la segunda fase se inspeccionan ${u(2)} y en la cuarta ${u(4)}.`
       : hard

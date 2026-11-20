@@ -4,32 +4,24 @@ export const exponential: Family = {
   id: 'exponenciales',
   theme: 'Funciones',
   topic: 'Funciones exponenciales',
-  courses: ['MAE', 'MAI'],
-  make(r, v, level, config) {
+  courses: ['MAI'],
+  make(r, v, level) {
     const a = 4 * r(2, 6)
     const base = r(2, 3)
     const b = v ? 1 / base : base
     const c = r(2, 10)
     const later = r(3, 4)
-    const easy = level === 'Básico',
-      hard = level === 'Avanzado'
-    const applied = config?.course === 'MAI'
-    const technology = config ? applied || config.paper === 2 : false
+    const easy = level === 'Fácil',
+      hard = level === 'Difícil'
     // Exact integer observations even when the decay factor is 1/3.
     const unit = v ? base ** later : 1
     const A = a * unit
     const F = (x: number) => c + A * b ** x
-    const target = technology
-      ? v
-        ? c + Math.floor(A / (base + 1))
-        : c + A * (base + 1)
-      : F(v && hard ? -1 : 3)
+    const target = v ? c + Math.floor(A / (base + 1)) : c + A * (base + 1)
     const statedTarget = Number(target.toPrecision(8))
     const crossing = Math.log((statedTarget - c) / A) / Math.log(b)
     const model = '$F(x)=C+A b^x$'
-    const stem = applied
-      ? `Un laboratorio calibra un sensor. Su lectura, en milivoltios, después de $x$ minutos sigue el modelo ${model} durante los primeros cuatro minutos.`
-      : `Una familia de curvas tiene ecuación ${model}, con $A>0$, $b>0$ y $b≠1$. La tabla muestra puntos de una curva.`
+    const stem = `Un laboratorio calibra un sensor. Su lectura, en milivoltios, después de $x$ minutos sigue el modelo ${model} durante los primeros cuatro minutos.`
     const observations = (v ? [0, 2] : [0, 1, 2]).map((x) => [
       x,
       Math.round(F(x)),
@@ -46,10 +38,7 @@ export const exponential: Family = {
       stem: stem + offset,
       figure: {
         type: 'table',
-        headers: [
-          applied ? 'Tiempo (min)' : 'x',
-          applied ? 'Lectura (mV)' : 'F(x)',
-        ],
+        headers: ['Tiempo (min)', 'Lectura (mV)'],
         rows: observations,
       },
       tasks: [
@@ -123,9 +112,7 @@ export const exponential: Family = {
           crossing,
           [
             `Aísla la potencia: $b^x=(${fmt(target)}-${c})/${A}$.`,
-            technology
-              ? 'Toma logaritmos en ambos miembros y divide por el logaritmo de b.'
-              : 'Expresa el cociente como una potencia de la misma base e iguala los exponentes.',
+            'Toma logaritmos en ambos miembros y divide por el logaritmo de b.',
           ],
           [
             'Descuenta el desplazamiento.',
@@ -145,27 +132,15 @@ export const exponential: Family = {
           ],
         ),
         review(
-          applied
-            ? 'Explica si las lecturas disponibles permiten asegurar que el modelo seguirá siendo válido una hora después.'
-            : 'Justifica si la curva puede cortar su asíntota en un punto con abscisa finita.',
-          applied
-            ? [
-                'Las mediciones solo describen el intervalo observado. Otras curvas podrían ajustarse a esos puntos y cambiar después. Harían falta observaciones próximas a una hora.',
-              ]
-            : [
-                `Para toda abscisa real, $b^x>0$ y $A=${A}>0$. Por ello $F(x)-C$ es siempre positivo. La distancia a la asíntota puede tender a cero sin alcanzarla.`,
-              ],
-          applied
-            ? [
-                'Compara los intervalos de tiempo.',
-                'Reconoce el límite de extrapolar.',
-                'Propone cómo contrastar la previsión.',
-              ]
-            : [
-                'Expresa la distancia vertical.',
-                'Establece su signo.',
-                'Deduce la imposibilidad de intersección.',
-              ],
+          'Explica si las lecturas disponibles permiten asegurar que el modelo seguirá siendo válido una hora después.',
+          [
+            'Las mediciones solo describen el intervalo observado. Otras curvas podrían ajustarse a esos puntos y cambiar después. Harían falta observaciones próximas a una hora.',
+          ],
+          [
+            'Compara los intervalos de tiempo.',
+            'Reconoce el límite de extrapolar.',
+            'Propone cómo contrastar la previsión.',
+          ],
         ),
       ],
     }

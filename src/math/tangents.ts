@@ -2,17 +2,17 @@ import { numberPart as n, review, type Family } from './model'
 
 export const tangents: Family = {
   id: 'tangentes',
-  theme: 'Cálculo',
+  theme: 'Análisis matemático',
   topic: 'Derivadas y rectas tangentes',
-  courses: ['MAI', 'MAE'],
+  courses: ['MAI'],
   make(r, v, level) {
     const a = r(1, 4),
       t = r(2, 5),
       c = r(4, 10),
       m = 2 * a * t
     const at = (x: number) => a * x * x + c
-    const easy = level === 'Básico',
-      hard = level === 'Avanzado'
+    const easy = level === 'Fácil',
+      hard = level === 'Difícil'
     const data = v
       ? `La curva $f(x)=ax^2+${c}$ tiene en $x=${t}$ una tangente de pendiente ${m}.`
       : `La curva está dada por $f(x)=${a}x^2+${c}$.`
@@ -94,102 +94,6 @@ export const tangents: Family = {
             'Describe la traslación de la curva.',
             'Relaciona ese cambio con la tangente.',
             'Justifica la invariancia del error.',
-          ],
-        ),
-      ],
-    }
-  },
-}
-
-export const motion: Family = {
-  id: 'movimiento',
-  theme: 'Cálculo',
-  topic: 'Integración y cinemática',
-  courses: ['MAE'],
-  make(r, v, level) {
-    const a = r(2, 5),
-      t = r(2, 5),
-      initial = r(8, 20),
-      end = 2 * t + 1
-    const velocity = (x: number) => a * (x - t)
-    const displacement = (x: number) => a * x * (x / 2 - t)
-    const easy = level === 'Básico',
-      hard = level === 'Avanzado'
-    return {
-      stem: `Un carro se mueve por una guía recta entre los instantes 0 y ${end} s. Parte de la posición ${initial} m. ${v ? `Su aceleración es constante e igual a ${a} m/s², y su velocidad inicial es ${-a * t} m/s.` : `Su velocidad en m/s es $v(t)=${a}(t-${t})$.`} El sentido positivo es hacia la derecha.`,
-      tasks: [
-        v
-          ? n(
-              'Encuentra el instante en que el carro invierte el sentido del movimiento.',
-              t,
-              [
-                `La velocidad es $${-a * t}+${a}t$. Iguala a cero. La aceleración positiva garantiza que cambia de signo.`,
-              ],
-              ['Reconstruye la velocidad a partir de la aceleración.'],
-            )
-          : n(
-              easy
-                ? 'Calcula la velocidad inicial en m/s.'
-                : 'Determina la posición en metros donde el carro cambia de sentido.',
-              easy ? velocity(0) : initial + displacement(t),
-              [
-                easy
-                  ? 'Evalúa la velocidad en cero.'
-                  : `El cambio se produce en $t=${t}$. Integra la velocidad entre 0 y ${t} y suma la posición inicial.`,
-              ],
-              ['Distingue posición de velocidad.'],
-            ),
-        hard
-          ? n(
-              '¿En qué instante positivo pasa de nuevo por su posición de partida?',
-              2 * t,
-              [
-                `El desplazamiento acumulado es $${a}t^2/2-${a * t}t$.`,
-                'Iguala a cero, factoriza y selecciona la raíz positiva.',
-              ],
-              ['Aplica la condición de desplazamiento nulo.'],
-            )
-          : n(
-              `Halla el desplazamiento entre el inicio y $t=${t + 1}$ s, en metros.`,
-              displacement(t + 1),
-              [
-                `Evalúa la primitiva $${a}t^2/2-${a * t}t$ en los dos extremos. Conserva el signo.`,
-              ],
-              ['Integra la velocidad con límites adecuados.'],
-            ),
-        n(
-          'Calcula la distancia total recorrida en metros durante todo el intervalo del modelo.',
-          displacement(end) - 2 * displacement(t),
-          [
-            `Divide el intervalo en $[0,${t}]$ y $[${t},${end}]$. El primer desplazamiento es ${displacement(t)} m.`,
-            `El segundo desplazamiento es ${displacement(end) - displacement(t)} m. Suma sus valores absolutos.`,
-          ],
-          [
-            'Localiza el cambio de sentido.',
-            'Acumula las distancias de ambos tramos.',
-          ],
-        ),
-        n(
-          'Halla la rapidez media en m/s durante todo el recorrido.',
-          (displacement(end) - 2 * displacement(t)) / end,
-          [
-            'Toma la distancia total del apartado anterior.',
-            `Divide por la duración completa de ${end} s.`,
-          ],
-          [
-            'Utiliza distancia recorrida.',
-            'Utiliza el intervalo temporal completo.',
-          ],
-        ),
-        review(
-          'Explica cómo cambiarían la distancia total y la velocidad media si se trasladara el origen de posiciones 10 m a la derecha.',
-          [
-            'Se resta 10 m a cada coordenada. Las diferencias de posición, la velocidad y los tiempos se conservan. Tanto la distancia total como la velocidad media mantienen su valor.',
-          ],
-          [
-            'Describe el cambio en las coordenadas.',
-            'Justifica la invariancia de las diferencias.',
-            'Interpreta ambas magnitudes.',
           ],
         ),
       ],

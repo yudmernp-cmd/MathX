@@ -1,14 +1,14 @@
-export type Course = 'MAI' | 'MAE'
+export type Course = 'MAI'
 export type Paper = 1 | 2
-export type Level = 'Básico' | 'Intermedio' | 'Avanzado'
-export const levels: Level[] = ['Básico', 'Intermedio', 'Avanzado']
-export type Difficulty = Level | 'Mixto'
+export type Level = 'Fácil' | 'Medio' | 'Difícil'
+export const levels: Level[] = ['Fácil', 'Medio', 'Difícil']
+export type Difficulty = Level
 export const themes = [
-  'Número y álgebra',
+  'Números y álgebra',
   'Funciones',
   'Geometría y trigonometría',
   'Estadística y probabilidad',
-  'Cálculo',
+  'Análisis matemático',
 ] as const
 export type Theme = (typeof themes)[number]
 export type Config = {
@@ -23,12 +23,24 @@ export type Part = {
   value: number | null
   steps: string[]
   rubric: string[]
+  marks?: number
+  label?: string
   percentage?: boolean
 }
 export type Figure =
   | { type: 'table'; headers: string[]; rows: (number | string)[][] }
   | { type: 'graph'; x: string; y: string; points: [number, number][] }
 export type Problem = {
+  id?: string
+  origin?: 'original' | 'real'
+  scheme?: 'revisado' | 'sin esquema'
+  assets?: { id: string; part: number; alt: string }[]
+  provenance?: {
+    year?: number
+    session?: string
+    number?: number
+    pages?: number[]
+  }
   family: string
   theme: Theme
   variant: number
@@ -57,8 +69,8 @@ export const fmt = (n: number) =>
     useGrouping: false,
   })
 export const points = (p: Problem) =>
-  p.parts.reduce((n, s) => n + s.rubric.length, 0)
-export const calc = (c: Config) => c.course === 'MAI' || c.paper === 2
+  p.parts.reduce((n, s) => n + (s.marks ?? s.rubric.length), 0)
+export const partMarks = (p: Part) => p.marks ?? p.rubric.length
 export type Context = { stem: string; figure?: Figure; tasks: Part[] }
 export type Family = {
   id: string

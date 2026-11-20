@@ -16,7 +16,7 @@ for (const f of families)
             expect(x0).toBe(0)
             expect(x1).toBeGreaterThan(0)
             const b = ctx.tasks[0]
-            if (level === 'Básico') expect((y1 - y0) / (x1 - x0)).toBe(b.value)
+            if (level === 'Fácil') expect((y1 - y0) / (x1 - x0)).toBe(b.value)
           }
         }
   })

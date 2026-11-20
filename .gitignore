@@ -4,3 +4,6 @@ dist/
 .env*
 test-results/
 playwright-report/
+.private/
+server-data/
+__pycache__/

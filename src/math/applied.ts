@@ -14,8 +14,8 @@ export const applied: Family[] = [
         other = slope - 1,
         base = fixed + cross
       const cost = (x: number) => fixed + slope * x
-      const easy = level === 'Básico',
-        hard = level === 'Avanzado'
+      const easy = level === 'Fácil',
+        hard = level === 'Difícil'
       return {
         stem: v
           ? `Un taller registra el coste total de alquilar una máquina. La tabla contiene dos presupuestos. El coste es una función afín de las horas de uso.`
@@ -117,7 +117,7 @@ export const applied: Family[] = [
   },
   {
     id: 'capital',
-    theme: 'Número y álgebra',
+    theme: 'Números y álgebra',
     topic: 'Matemática financiera',
     courses: ['MAI'],
     make(r, v, level) {
@@ -140,7 +140,7 @@ export const applied: Family[] = [
                 [`Divide el saldo del primer año entre ${fmt(g)}.`],
                 ['Invierte la capitalización.'],
               )
-            : level === 'Básico'
+            : level === 'Fácil'
               ? n(
                   'Halla el interés ganado durante el primer año.',
                   (p * rate) / 100,
@@ -155,7 +155,7 @@ export const applied: Family[] = [
                   ],
                   ['Aplica la tasa al saldo correcto.'],
                 ),
-          level === 'Avanzado'
+          level === 'Difícil'
             ? n(
                 `¿En qué año se supera por primera vez un saldo de S/ ${target - 1}?`,
                 t + 2,

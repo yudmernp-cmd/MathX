@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest'
-import { courseFamilies, exam, exercise, signature } from '../src/math/engine'
+import { families, exercise } from '../src/math/engine'
 import {
   random,
   levels,
@@ -7,17 +7,17 @@ import {
   type Config,
   type Problem,
 } from '../src/math/model'
-import { start } from '../src/math/session'
+
 import { exponential } from '../src/math/functions'
 import { referenceAnswers, verified } from '../src/math/verification'
 
-for (const course of ['MAI', 'MAE'] as const)
+for (const course of ['MAI'] as const)
   for (const paper of [1, 2] as const)
     it(`catálogo y filtros completos de ${course} P${paper}`, () => {
-      for (const difficulty of [...levels, 'Mixto'] as const) {
+      for (const difficulty of levels) {
         const config: Config = { course, paper, difficulty }
         for (const theme of themes) {
-          const pool = courseFamilies(config).filter((f) => f.theme === theme)
+          const pool = families.filter((f) => f.theme === theme)
           expect(pool.length).toBeGreaterThan(0)
           const seen = new Set<string>()
           for (let seed = 0; seed < 80; seed++) {
@@ -31,55 +31,15 @@ for (const course of ['MAI', 'MAE'] as const)
               const q = exercise({ ...config, theme, subtopic: f.id }, seed)
               expect(q.family).toBe(f.id)
               expect(q.topic).toBe(f.topic)
-              if (difficulty !== 'Mixto') expect(q.level).toBe(difficulty)
+              expect(q.level).toBe(difficulty)
             }
         }
       }
     })
 
-it('rechaza filtros incompatibles y los descarta en simulacros', () => {
-  const c: Config = {
-    course: 'MAE',
-    paper: 1,
-    difficulty: 'Intermedio',
-    theme: 'Funciones',
-    subtopic: 'voronoi',
-  }
-  expect(() => exercise(c, 1)).toThrow('verificado')
-  expect(exam(c, 1)).toEqual(
-    exam({ course: 'MAE', paper: 1, difficulty: 'Intermedio' }, 1),
-  )
-  expect(courseFamilies(c).map((f) => f.id)).not.toContain('normal')
-  expect(courseFamilies({ ...c, paper: 2 }).map((f) => f.id)).toContain(
-    'normal',
-  )
-})
-
-it('alterna estructuras de un subtema y equilibra la dificultad mixta durante sesiones largas', () => {
-  const c: Config = {
-    course: 'MAI',
-    paper: 1,
-    difficulty: 'Mixto',
-    theme: 'Funciones',
-    subtopic: 'exponenciales',
-  }
-  let recent: string[] = []
-  const seq: Problem[] = []
-  for (let i = 0; i < 36; i++) {
-    const run = start(c, 'Ejercicios', 200 + i, recent)
-    const q = run.questions[0]
-    expect(q.family).toBe(c.subtopic)
-    expect(q).toEqual(exercise(c, run.seed))
-    if (i) expect(q.variant).not.toBe(seq[i - 1].variant)
-    seq.push(q)
-    recent = [...recent, signature(q) + ':' + q.level].slice(-12)
-    if (i >= 2) expect(new Set(seq.slice(-3).map((p) => p.level)).size).toBe(3)
-  }
-})
-
 it('impide mostrar respuestas corruptas, tablas incompletas y gráficos inválidos', () => {
-  const ctx = exponential.make(random(12), 0, 'Avanzado')
-  const ref = referenceAnswers(exponential.id, random(12), 0, 'Avanzado')
+  const ctx = exponential.make(random(12), 0, 'Difícil')
+  const ref = referenceAnswers(exponential.id, random(12), 0, 'Difícil')
   expect(verified(ctx, ref)).toBe(true)
   expect(
     verified(
@@ -131,10 +91,10 @@ it('la tabla exponencial determina las respuestas en ambas pruebas sin conocer l
   for (const paper of [1, 2] as const)
     for (const v of [0, 1])
       for (let seed = 0; seed < 60; seed++) {
-        const q = exponential.make(random(seed), v, 'Avanzado', {
-          course: 'MAE',
+        const q = exponential.make(random(seed), v, 'Difícil', {
+          course: 'MAI',
           paper,
-          difficulty: 'Avanzado',
+          difficulty: 'Difícil',
         })
         if (q.figure?.type !== 'table') throw Error('Faltan los datos')
         const rows = q.figure.rows.map((row) => Number(row[1]))
@@ -159,7 +119,6 @@ it('la tabla exponencial determina las respuestas en ambas pruebas sin conocer l
           )
         }
         const answer = q.tasks[2].value!
-        if (paper === 1) expect(answer).toBeCloseTo(Math.round(answer), 10)
-        else expect(Math.abs(answer - Math.round(answer))).toBeGreaterThan(0.01)
+        expect(Math.abs(answer - Math.round(answer))).toBeGreaterThan(0.01)
       }
 })

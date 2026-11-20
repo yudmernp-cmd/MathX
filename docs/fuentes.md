@@ -1,5 +1,7 @@
 # Investigación de Matemáticas IB de Nivel Medio
 
+El registro siguiente corresponde a la investigación anterior de fuentes públicas. La edición privada actual ofrece exclusivamente MAI NM. El procesamiento posterior de la colección de Drive y sus verificaciones se recogen en el [informe de importación](importacion.md).
+
 ## Corrección tras revisar el inventario aportado
 
 El archivo `fuentes.txt` sí contiene más enlaces que los que había usado en la primera revisión. Los enlaces de Scribd y Studocu son páginas HTML de terceros. Al consultarlos desde este entorno, Studocu respondió 403 y Scribd entregó la página del servicio, no un PDF abierto completo. Por tanto, no los cuento como exámenes leídos gratuitamente.

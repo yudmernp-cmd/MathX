@@ -7,21 +7,16 @@ import {
 } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
 import {
-  calc,
   levels,
   themes,
   type Config,
   type Difficulty,
   type Theme,
 } from './math/model'
-import { courseFamilies } from './math/engine'
+
 import type { Mode } from './math/session'
 
-const names = {
-  MAI: 'Aplicaciones e Interpretación',
-  MAE: 'Análisis y Enfoques',
-}
-
+export type Catalog = { paper: 1 | 2; theme: Theme; topic: string }[]
 function Select({
   label,
   value,
@@ -57,27 +52,22 @@ export function Setup({
   mode,
   setMode,
   begin,
+  catalog,
+  busy,
 }: {
   config: Config
   setConfig: (c: Config) => void
   mode: Mode
   setMode: (m: Mode) => void
+  catalog: Catalog
+  busy: boolean
   begin: () => void
 }) {
   const isExam = mode === 'Simulacros'
-  const topics = courseFamilies(config).filter((f) => f.theme === config.theme)
-  const current = topics.find((f) => f.id === config.subtopic)
-  function updateCourseOrPaper(next: Config) {
-    const accessible = courseFamilies(next)
-    setConfig({
-      ...next,
-      subtopic: accessible.some(
-        (f) => f.id === next.subtopic && f.theme === next.theme,
-      )
-        ? next.subtopic
-        : undefined,
-    })
-  }
+  const topics = catalog.filter(
+    (f) => f.paper === config.paper && f.theme === config.theme,
+  )
+  const current = topics.find((f) => f.topic === config.subtopic)
   const summary = [
     ['Asignatura', config.course + ' NM'],
     ['Prueba', 'Prueba ' + config.paper],
@@ -87,13 +77,13 @@ export function Setup({
           ['Tema', config.theme || 'Todos los temas'],
           ['Subtema', current?.topic || 'Todos los subtemas'],
         ]),
-    ['Dificultad', config.difficulty],
-    ['Calculadora', calc(config) ? 'Gráfica requerida' : 'Sin calculadora'],
+    ...(!isExam ? [['Dificultad', config.difficulty]] : []),
+    ['Calculadora', 'Gráfica requerida'],
   ]
   return (
     <>
       <div className="page-title">
-        <h1>Práctica de Matemáticas IB</h1>
+        <h1>Práctica de MAI NM</h1>
       </div>
       <div className="setup-grid">
         <section className="panel setup">
@@ -111,29 +101,15 @@ export function Setup({
                     onClick={() => setMode(m)}
                   >
                     <Icon size={19} aria-hidden="true" />
-                    <span>{m}</span>
+                    <span>
+                      {m === 'Ejercicios' ? 'Ejercicios por temas' : m}
+                    </span>
                     <i className="dot" aria-hidden="true" />
                   </button>
                 )
               })}
             </div>
           </fieldset>
-          <Select
-            label="Asignatura"
-            value={config.course}
-            onChange={(course) =>
-              updateCourseOrPaper({
-                ...config,
-                course: course as Config['course'],
-              })
-            }
-          >
-            {Object.entries(names).map(([id, name]) => (
-              <option key={id} value={id}>
-                {id} NM — {name}
-              </option>
-            ))}
-          </Select>
           <fieldset>
             <legend>Prueba</legend>
             <div className="seg">
@@ -141,7 +117,20 @@ export function Setup({
                 <button
                   key={p}
                   aria-pressed={config.paper === p}
-                  onClick={() => updateCourseOrPaper({ ...config, paper: p })}
+                  onClick={() =>
+                    setConfig({
+                      ...config,
+                      paper: p,
+                      subtopic: catalog.some(
+                        (f) =>
+                          f.paper === p &&
+                          f.topic === config.subtopic &&
+                          f.theme === config.theme,
+                      )
+                        ? config.subtopic
+                        : undefined,
+                    })
+                  }
                 >
                   Prueba {p}
                 </button>
@@ -176,7 +165,7 @@ export function Setup({
                 >
                   <option value="">Todo el tema</option>
                   {topics.map((f) => (
-                    <option key={f.id} value={f.id}>
+                    <option key={f.topic} value={f.topic}>
                       {f.topic}
                     </option>
                   ))}
@@ -184,22 +173,24 @@ export function Setup({
               )}
             </div>
           )}
-          <fieldset>
-            <legend>Dificultad</legend>
-            <div className="seg difficulties">
-              {[...levels, 'Mixto'].map((l) => (
-                <button
-                  key={l}
-                  aria-pressed={config.difficulty === l}
-                  onClick={() =>
-                    setConfig({ ...config, difficulty: l as Difficulty })
-                  }
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          {!isExam && (
+            <fieldset>
+              <legend>Dificultad</legend>
+              <div className="seg difficulties">
+                {levels.map((l) => (
+                  <button
+                    key={l}
+                    aria-pressed={config.difficulty === l}
+                    onClick={() =>
+                      setConfig({ ...config, difficulty: l as Difficulty })
+                    }
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
         </section>
         <aside className="panel summary">
           <h2>Resumen</h2>
@@ -213,18 +204,16 @@ export function Setup({
           </dl>
           {isExam && (
             <p className="exam-format">
-              {config.course === 'MAE'
-                ? 'Sección A de respuesta corta y sección B de respuesta extensa.'
-                : config.paper === 1
-                  ? 'Preguntas de respuesta corta.'
-                  : 'Problemas de respuesta extensa.'}
+              {config.paper === 1
+                ? 'Preguntas de respuesta corta.'
+                : 'Problemas de respuesta extensa.'}
             </p>
           )}
           <div className="time-note">
             <Clock3 size={16} />
             {isExam ? '90 minutos · 80 puntos' : 'Sin límite de tiempo'}
           </div>
-          <button className="primary start" onClick={begin}>
+          <button disabled={busy} className="primary start" onClick={begin}>
             {isExam ? 'Empezar simulacro' : 'Empezar práctica'}
             <ArrowRight size={18} />
           </button>

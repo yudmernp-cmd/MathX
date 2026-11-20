@@ -1,0 +1,7 @@
+.private/
+**/*.pdf
+**/*.argosmodel
+**/__pycache__/
+test-results/
+tests/
+.env*

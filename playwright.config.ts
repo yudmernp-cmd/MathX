@@ -1,9 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
+import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 const systemBrowser =
   process.env.CHROMIUM_PATH ||
   (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined)
 const publicURL = process.env.MATHX_TEST_URL
+if (!publicURL) {
+  process.env.MATHX_CLASS_PASSWORD ||= randomBytes(18).toString('hex')
+  process.env.MATHX_SESSION_SECRET ||= randomBytes(32).toString('hex')
+}
 export default defineConfig({
   testDir: 'tests',
   testMatch: '**/*.browser.spec.ts',
@@ -22,7 +27,7 @@ export default defineConfig({
   webServer: publicURL
     ? undefined
     : {
-        command: 'npm run preview -- --port 4182 --strictPort',
+        command: 'node tests/preview.mjs',
         url: 'http://127.0.0.1:4182',
         reuseExistingServer: false,
       },

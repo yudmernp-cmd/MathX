@@ -1,34 +1,34 @@
 # MathX
-Aplicación de práctica en español para Matemáticas IB de Nivel Medio. React, Vite y TypeScript generan y corrigen localmente ejercicios y simulacros reproducibles. El sitio utiliza KaTeX, Tailwind CSS y D3. Las fuentes tipográficas se sirven con la aplicación.
 
-## Desarrollo
-Usa Node.js 22.12 o posterior. Desde la raíz del repositorio ejecuta:
+Aula privada de Matemáticas IB · Aplicaciones e Interpretación, Nivel Medio. React, TypeScript, Vite y KaTeX. El acceso compartido, la selección de preguntas y la entrega de figuras se comprueban en una función de Node.js. El navegador recibe únicamente el catálogo de subtemas y las preguntas de la sesión escogida.
+
+## Desarrollo y despliegue
+
+Utiliza Node 24. Configura dos variables de entorno en el proceso de desarrollo o en el proyecto de Vercel. `MATHX_CLASS_PASSWORD` contiene la clave compartida que el docente comunica por su canal habitual. `MATHX_SESSION_SECRET` contiene un secreto aleatorio privado de al menos 32 caracteres. Puedes generar ese segundo valor en tu propio gestor de secretos. Los valores se leen en el servidor. La ausencia de configuración cierra el aula. En desarrollo utiliza localhost para las cookies seguras.
 
 ```sh
 npm ci
 npm run dev
-```
-
-## Verificación y producción
-```sh
 npm test
 npm run build
 npm run test:e2e
 npm run preview
 ```
 
-Playwright utiliza Chromium en /usr/bin/chromium cuando está disponible. En otro equipo instala el navegador con `npx playwright install chromium` o indica el ejecutable mediante `CHROMIUM_PATH`. La suite de navegador arranca una vista previa de dist. Para probar una instalación pública, configura `MATHX_TEST_URL` con su URL y ejecuta la misma suite.
+La compilación prepara la reserva en SQLite y el sitio en `dist`. Vercel empaqueta `server-data/bank.sqlite` con `api/classroom.mjs`. Configura las variables en el ámbito Production y vuelve a desplegar al cambiarlas. La sesión dura ocho horas y utiliza una cookie firmada, Secure, HttpOnly y SameSite=Strict. La página de acceso es pública. El catálogo, el contenido de los ejercicios y las imágenes requieren una sesión vigente. Las respuestas de una sesión abierta se conservan en la pestaña. Cambiar la clave o el secreto invalida las cookies anteriores.
 
-## Motor y evaluación
-En ejercicios se puede seleccionar un tema completo o uno de los subtemas disponibles para la asignatura y prueba. Los controles y el generador comparten el mismo catálogo. La selección Mixto distribuye los niveles en la práctica continuada. Los simulacros recorren los cinco temas con un presupuesto de puntos fijo. La clasificación de dificultad y el reparto de preguntas entre secciones son decisiones de práctica de MathX.
+## Banco del aula
 
-Las familias de src/math definen su curso, restricciones de muestreo, contexto, incógnitas, dependencias, pasos y criterios. Los parámetros se eligen en intervalos discretos que garantizan denominadores positivos, grupos no vacíos y dominios válidos. Cada estructura parte de datos directos o inversos. El nivel básico incorpora ayudas y los niveles superiores incluyen preguntas de combinación o inversión. La semilla mostrada y la configuración reproducen la generación de la misma versión mediante `exercise(config, seed)` o `exam(config, seed)`.
+```sh
+npm run bank:prepare
+npm run bank:prepare -- --add 20
+npm run bank:report
+```
 
-El ensamblador selecciona prefijos de incisos que conservan sus dependencias y baremos. Busca por suma exacta dentro de cada sección. MAI P1 tiene 12 preguntas cortas. MAI P2 tiene seis extensas. MAE combina seis preguntas cortas en A con tres extensas en B. Todos los modelos duran 90 minutos y suman 80 puntos.
+La reserva empieza con veinte semillas por familia, prueba y dificultad. Cada enunciado pasa por el verificador matemático y se deduplica por contenido. El segundo comando amplía el intervalo de semillas por familia. Las siguientes compilaciones locales conservan ese tamaño. En un despliegue limpio puede fijarse con `MATHX_RESERVE_SIZE`.
 
-Cada respuesta numérica correcta verifica un punto de resultado. Las expresiones admiten operaciones aritméticas, potencias, raíces, pi y logaritmos (ln natural y log decimal). Los puntos de método quedan para revisión cuando hay procedimiento escrito. El razonamiento abierto se contrasta con la solución y sus criterios. Los espacios en blanco no suman puntos. El temporizador usa una hora absoluta de vencimiento. La sesión y la selección reciente se conservan en sessionStorage de la pestaña.
+Los simulacros tienen un límite de 90 minutos, 80 puntos y calculadora gráfica. MathX utiliza doce preguntas en P1 y cinco en P2, tamaños observados en la colección. En P1 reparte seis preguntas de cada origen. En P2 reparte tres de un origen y dos del otro. El constructor busca los cinco temas, las tres dificultades, baremos próximos entre fuentes y estructuras distintas. Respeta cada pregunta real completa. Un banco insuficiente devuelve un diagnóstico y deja disponible la práctica por temas. El informe administrativo prueba también tamaños alternativos cuando encuentra un conflicto.
 
-Las pruebas incluyen recálculos independientes, enumeraciones de sucesos, ajuste por mínimos cuadrados, integración y comprobación de combinaciones de familias y semillas. Consulta docs/fuentes.md y docs/fuentes.csv para el alcance académico verificado.
+El despliegue desde Git contiene la reserva original. Para incorporar preguntas reales, el docente revisa y autoriza cada registro localmente y exporta `server-data/approved.sqlite`. Puede desplegar desde ese checkout con la CLI de Vercel en el proyecto autorizado. El paquete privado se utiliza como entrada de compilación. Los PDF, imágenes fuente, borradores y secretos quedan fuera de Git y del despliegue. Los cambios de autorización y retiradas requieren reexportar y desplegar la nueva edición.
 
-## Vercel
-El proyecto usa el preset Vite, el comando `npm run build` y la carpeta de salida `dist`. Con una cuenta de Vercel autorizada, se puede importar el repositorio o ejecutar `vercel deploy --prod` desde la raíz. La aplicación desplegada no requiere variables de entorno, claves ni servidor de pago.
+[Importador y revisión](docs/banco-privado.md) · [Resultados del piloto y la colección](docs/importacion.md) · [Fuentes y condiciones académicas](docs/fuentes.md)

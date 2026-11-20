@@ -1,66 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import katex from 'katex'
-import { families, exam, exercise, duration } from '../src/math/engine'
+import { families, exercise } from '../src/math/engine'
 import { correct, readNumber } from '../src/math/grading'
-import { calc, levels, points, random, type Config } from '../src/math/model'
-import { start, score } from '../src/math/session'
+import { levels, points, random, type Config } from '../src/math/model'
+import { score, type Run } from '../src/math/session'
 describe('Montaje de pruebas y cobertura', () => {
-  for (const course of ['MAE', 'MAI'] as const)
-    for (const paper of [1, 2] as const)
-      for (const difficulty of [...levels, 'Mixto'] as const) {
-        const c: Config = { course, paper, difficulty }
-        it(`${course} P${paper} · ${difficulty} · 250 semillas`, () => {
-          const seen = new Set<string>()
-          for (let seed = 0; seed < 250; seed++) {
-            const qs = exam(c, seed),
-              marks = qs.map(points)
-            if (new Set(qs.map((q) => q.theme)).size !== 5)
-              throw Error('Falta un tema del programa')
-            if (marks.reduce((a, b) => a + b, 0) !== 80)
-              throw Error('Total distinto de 80')
-            if (
-              course === 'MAE' &&
-              marks.slice(0, 6).reduce((a, b) => a + b, 0) !== 40
-            )
-              throw Error('Sección A')
-            if (
-              course === 'MAI' &&
-              marks.some((x) => (paper === 2 ? x < 10 : x > 8))
-            )
-              throw Error('Longitud incorrecta')
-            if (new Set(qs.map((q) => q.family + q.variant)).size !== qs.length)
-              throw Error('Estructura repetida')
-            for (const q of qs) {
-              seen.add(q.family)
-              const f = families.find((f) => f.id === q.family)!
-              if (!f.courses.includes(course) || (!calc(c) && f.id === 'lotes'))
-                throw Error('Asignatura incompatible')
-              if (difficulty !== 'Mixto' && q.level !== difficulty)
-                throw Error('Nivel incorrecto')
-            }
-            if (difficulty === 'Mixto') {
-              const counts = levels.map(
-                (l) => qs.filter((q) => q.level === l).length,
-              )
-              if (Math.max(...counts) - Math.min(...counts) > 1)
-                throw Error('Mezcla desequilibrada')
-            }
-          }
-          expect(seen.size).toBeGreaterThanOrEqual(6)
-          expect(exam(c, 64127)).toEqual(exam(c, 64127))
-          expect(start(c, 'Simulacros', 62, [], 1999).deadline).toBe(
-            1999 + duration,
-          )
-          expect(duration).toBe(5400000)
-        })
-      }
-  it('la semilla mostrada reproduce el ejercicio tras evitar repeticiones', () => {
-    const c: Config = { course: 'MAI', paper: 1, difficulty: 'Mixto' }
-    const prev = exercise(c, 500)
-    const next = start(c, 'Ejercicios', 500, [prev.family + '-' + prev.variant])
-    expect(next.questions[0].family).not.toBe(prev.family)
-    expect(exercise(c, next.seed)).toEqual(next.questions[0])
-  })
   for (const family of families)
     it(family.id + ' · 600 combinaciones y baremos', () => {
       for (let seed = 0; seed < 100; seed++)
@@ -130,13 +74,21 @@ describe('Corrección segura', () => {
     expect(correct('50%', 50, true)).toBe(true)
     expect(correct('0', 1e-10)).toBe(false)
     expect(correct('1.24', 1.2345)).toBe(false)
-    const run = start(
-      { course: 'MAI', paper: 2, difficulty: 'Avanzado' },
-      'Ejercicios',
-      12,
-      [],
-    )
+    const config: Config = { course: 'MAI', paper: 2, difficulty: 'Difícil' }
+    const run: Run = {
+      config,
+      mode: 'Ejercicios',
+      questions: [exercise(config, 12)],
+      seed: 12,
+      index: 0,
+      deadline: 0,
+      checked: false,
+      finished: false,
+      answers: {},
+      notes: {},
+    }
     expect(score(run)).toEqual({
+      withoutScheme: 0,
       verified: 0,
       pending: 0,
       total: points(run.questions[0]),
@@ -147,6 +99,7 @@ describe('Corrección segura', () => {
       run.notes['0-' + i] = 'Procedimiento'
     })
     expect(score(run)).toEqual({
+      withoutScheme: 0,
       verified: 4,
       pending: points(run.questions[0]) - 4,
       total: points(run.questions[0]),
