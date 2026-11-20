@@ -124,6 +124,19 @@ class PipelineTest(unittest.TestCase):
         self.cmd("export", "--output", str(dest), ok=False)
         self.cmd("review", ident, "authorize", ok=False)
 
+    def test_review_renders_math_locally(self):
+        self.cmd("import", "--local", str(self.files))
+        draft = next(self.private.glob("questions/*/*/draft.json"))
+        q = json.loads(draft.read_text())
+        q["stem"] = "Considera $x^2+1$."
+        draft.write_text(json.dumps(q))
+        self.cmd(
+            "review", str(draft.parent.relative_to(self.private / "questions")), "show"
+        )
+        rendering = (draft.parent / "review.html").read_text()
+        self.assertIn('class="katex"', rendering)
+        self.assertNotIn(" + rendered + ", rendering)
+
     def test_ocr(self):
         doc = pdf.open(self.pdf)
         scanned = pdf.open()

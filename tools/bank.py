@@ -301,12 +301,24 @@ def review(args, base):
             + '">'
             for ref in q["refs"]
         )
+        rendered = subprocess.run(
+            ["node", str(ROOT / "tools/preview-math.mjs")],
+            input=json.dumps(q),
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout
+        stylesheet = (ROOT / "node_modules/katex/dist/katex.min.css").as_uri()
         (folder / "review.html").write_text(
-            '<meta charset="utf-8"><title>Revisión privada</title><style>main{display:grid;grid-template-columns:1fr 1fr;gap:2em}pre{white-space:pre-wrap}img{max-width:100%}</style><main><section><h1>Fuente</h1>'
+            '<link rel="stylesheet" href="'
+            + esc(stylesheet, quote=True)
+            + '"><meta charset="utf-8"><title>Revisión privada</title><style>main{display:grid;grid-template-columns:1fr 1fr;gap:2em}pre{white-space:pre-wrap}img{max-width:100%}</style><main><section><h1>Fuente</h1>'
             + figs
             + "<pre>"
             + original
-            + "</pre></section><section><h1>Borrador español</h1><pre>"
+            + "</pre></section><section><h1>Borrador español</h1>"
+            + rendered
+            + "<h2>Ficha editable</h2><pre>"
             + document
             + "</pre></section></main>"
         )
@@ -457,7 +469,17 @@ def export(args, base, db):
                         q["level"],
                         q["marks"],
                         digest(re.sub(r"\d+", "N", wording)),
-                        digest(wording),
+                        digest(
+                            json.dumps(
+                                [
+                                    wording,
+                                    [(b["label"], b["marks"]) for b in q["parts"]],
+                                    assets,
+                                ],
+                                sort_keys=True,
+                                ensure_ascii=False,
+                            )
+                        ),
                         json.dumps(item, ensure_ascii=False),
                     ),
                 )
