@@ -56,6 +56,7 @@ export function bank() {
   const familyByKey = new Map(
     index.map((row) => [row.historyKey, row.similarity]),
   )
+  const originByKey = new Map(index.map((row) => [row.historyKey, row.origin]))
   const lookup = db.prepare('SELECT payload FROM items WHERE id=?')
   const catalog = db
     .prepare(
@@ -97,7 +98,10 @@ export function bank() {
       } else {
         const lastFamily = new Map()
         history.forEach((key, i) => lastFamily.set(familyByKey.get(key), i))
-        ids = [practice(available, config, rng, lastFamily)]
+        const last = history.findLast((key) => originByKey.has(key))
+        ids = [
+          practice(available, config, rng, lastFamily, originByKey.get(last)),
+        ]
       }
       return ids.map((id) => ({
         ...JSON.parse(lookup.get(id).payload),

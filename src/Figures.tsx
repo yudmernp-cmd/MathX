@@ -11,6 +11,7 @@ export function MathText({ text }: { text: string }) {
           i % 2 ? (
             <span
               key={i}
+              className={t.includes('\\begin{array}') ? 'math-table' : undefined}
               dangerouslySetInnerHTML={{
                 __html: katex.renderToString(t, {
                   throwOnError: false,

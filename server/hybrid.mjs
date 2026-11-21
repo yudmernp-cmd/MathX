@@ -24,103 +24,134 @@ export function shuffled(items, rng = Math.random) {
 function candidates(rows, rng) {
   const choices = new Map()
   for (const q of shuffled(rows, rng)) {
-    const key = [q.similarity, q.theme, q.level, q.marks].join('|')
+    const key = [q.similarity, q.historyKey, q.theme, q.level, q.marks].join(
+      '|',
+    )
     if (!choices.has(key)) choices.set(key, q)
   }
   return [...choices.values()]
 }
+// One choice per family. For each suffix, track the marks attainable with exactly k
+// questions. The search only visits combinations that can still reach both mark totals.
+function placements(rows, count) {
+  const grouped = new Map()
+  for (const q of rows) {
+    if (!grouped.has(q.similarity)) grouped.set(q.similarity, [])
+    grouped.get(q.similarity).push(q)
+  }
+  const groups = [...grouped.values()]
+  const sums = Array.from({ length: groups.length + 1 }, () =>
+    Array(count + 1).fill(0n),
+  )
+  const mask = (1n << 81n) - 1n
+  sums[groups.length][0] = 1n
+  for (let i = groups.length - 1; i >= 0; i--) {
+    sums[i][0] = 1n
+    const marks = new Set(groups[i].map((q) => q.marks).filter((m) => m <= 80))
+    for (let k = 1; k <= count; k++) {
+      let bits = sums[i + 1][k]
+      for (const m of marks) bits |= sums[i + 1][k - 1] << BigInt(m)
+      sums[i][k] = bits & mask
+    }
+  }
+  return {
+    groups,
+    fits: (i, k, marks) =>
+      marks >= 0 && marks <= 80 && Boolean(sums[i][k] & (1n << BigInt(marks))),
+  }
+}
 function select(pools, realCount, total, rng) {
-  const order = shuffled(
-    [
-      ...Array(realCount).fill('real'),
-      ...Array(total - realCount).fill('original'),
-    ],
+  const real = placements(pools.real, realCount)
+  const originalCount = total - realCount
+  const original = placements(pools.original, originalCount)
+  const ordered = [real, original]
+  const targets = shuffled(
+    Array.from({ length: 81 }, (_, i) => i),
     rng,
   )
-  const reachable = Array.from({ length: total + 1 }, () => new Set())
-  reachable[total].add(0)
-  for (let i = total - 1; i >= 0; i--) {
-    for (const m of new Set(pools[order[i]].map((q) => q.marks)))
-      for (const rest of reachable[i + 1]) {
-        if (m + rest <= 80) reachable[i].add(m + rest)
-      }
-  }
-  const seen = new Set(),
-    openings = new Set(),
-    selected = [],
-    levelCounts = [0, 0, 0]
-
-  let remainingNodes = 35000
-  function step(i, marks, topicMask, levelMask, realMarks, tolerance) {
-    if (!reachable[i].has(80 - marks)) return false
-    if (i === total)
-      return (
-        marks === 80 &&
-        topicMask === 31 &&
-        levelMask === 7 &&
-        Math.abs(realMarks - 40) <= tolerance
-      )
-    if (--remainingNodes <= 0) return false
-    const left = total - i
-    const missing = themes.filter((_, k) => !(topicMask & (1 << k))).length
-    if (left < missing || marks >= 80) return false
-    const origin = order[i]
-    // Prefer a missing topic, then a missing level; random order breaks ties.
-    const options = pools[origin].filter(
-      (q) =>
-        !seen.has(q.similarity) &&
-        !openings.has(q.historyKey ?? q.id) &&
-        reachable[i + 1].has(80 - marks - q.marks) &&
-        levelCounts[q.li] < Math.ceil(total / 3) + 1,
+    .filter(
+      (m) =>
+        real.fits(0, realCount, m) && original.fits(0, originalCount, 80 - m),
     )
-    const priority = (q) =>
-      Number(!(topicMask & q.t)) * 10 -
-      2 * levelCounts[q.li] -
-      Math.abs(q.marks - (80 - marks) / left) / 8
-    options.sort((a, b) => priority(b) - priority(a))
-    for (const q of options) {
-      if (remainingNodes <= 0) break
-      const next = marks + q.marks
-      if (i + 1 === total && next !== 80) continue
-      seen.add(q.similarity)
-      openings.add(q.historyKey ?? q.id)
-      selected.push(q)
-      levelCounts[q.li]++
-      if (
-        step(
-          i + 1,
-          next,
-          topicMask | q.t,
-          levelMask | q.l,
-          realMarks + (origin === 'real' ? q.marks : 0),
-          tolerance,
-        )
-      )
-        return true
-      selected.pop()
-      seen.delete(q.similarity)
-      openings.delete(q.historyKey ?? q.id)
-      levelCounts[q.li]--
+    .sort(
+      (a, b) =>
+        Math.max(0, Math.abs(a - 40) - 10) - Math.max(0, Math.abs(b - 40) - 10),
+    )
+  const selected = [[], []]
+  const used = new Set()
+  const owners = new Map()
+  const shared = new Set()
+  for (const q of [...pools.real, ...pools.original]) {
+    const key = q.historyKey ?? q.id
+    if (owners.has(key) && owners.get(key) !== q.similarity) shared.add(key)
+    owners.set(key, q.similarity)
+  }
+  const deadEnds = new Set()
+  const levelCounts = [0, 0, 0]
+  function choose(source, start, left, marks, topics, originalMarks) {
+    if (!left) {
+      if (source === 0)
+        return choose(1, 0, originalCount, originalMarks, topics, originalMarks)
+      return topics === 31 && levelCounts.every((n) => n > 0)
     }
+    const { groups, fits } = ordered[source]
+    const slots = left + (source === 0 ? originalCount : 0)
+    if (
+      themes.filter((_, i) => !(topics & (1 << i))).length > slots ||
+      levelCounts.filter((n) => !n).length > slots
+    )
+      return false
+    // Only openings shared across families can constrain a later placement.
+    const sharedUsed = [...used].filter((key) => shared.has(key)).sort()
+    const state = [
+      source,
+      start,
+      left,
+      marks,
+      topics,
+      originalMarks,
+      ...levelCounts,
+      ...sharedUsed,
+    ].join('|')
+    if (deadEnds.has(state)) return false
+    for (let i = start; i <= groups.length - left; i++) {
+      if (!fits(i, left, marks)) break
+      for (const q of groups[i]) {
+        const key = q.historyKey ?? q.id
+        if (
+          used.has(key) ||
+          levelCounts[q.li] >= Math.ceil(total / 3) + 1 ||
+          !fits(i + 1, left - 1, marks - q.marks)
+        )
+          continue
+        used.add(key)
+        selected[source].push(q)
+        levelCounts[q.li]++
+        if (
+          choose(
+            source,
+            i + 1,
+            left - 1,
+            marks - q.marks,
+            topics | q.t,
+            originalMarks,
+          )
+        )
+          return true
+        levelCounts[q.li]--
+        selected[source].pop()
+        used.delete(key)
+      }
+    }
+    deadEnds.add(state)
     return false
   }
-  for (const tolerance of [10, 40]) {
-    remainingNodes = 35000
-    if (step(0, 0, 0, 0, 0, tolerance)) {
-      // Alternation prevents large consecutive blocks of either source.
-      const real = shuffled(
-        selected.filter((q) => q.origin === 'real'),
-        rng,
-      )
-      const orig = shuffled(
-        selected.filter((q) => q.origin === 'original'),
-        rng,
-      )
-      const realFirst =
-        real.length === orig.length ? rng() < 0.5 : real.length > orig.length
-      const pair = realFirst ? [real, orig] : [orig, real]
-      return Array.from({ length: total }, (_, i) => pair[i % 2].pop().id)
-    }
+  for (const m of targets) {
+    if (!choose(0, 0, realCount, m, 0, 80 - m)) continue
+    const [r, o] = selected.map((list) => shuffled(list, rng))
+    const realFirst = r.length === o.length ? rng() < 0.5 : r.length > o.length
+    const pair = realFirst ? [r, o] : [o, r]
+    return Array.from({ length: total }, (_, i) => pair[i % 2].pop().id)
   }
   return null
 }
@@ -173,6 +204,7 @@ export function practice(
   config,
   rng = Math.random,
   lastFamily = new Map(),
+  previousOrigin,
 ) {
   const pool = rows.filter(
     (q) =>
@@ -188,7 +220,13 @@ export function practice(
         paper: config.paper,
       },
     )
-  const choices = shuffled(pool, rng).sort(
+  // A large generated reserve must not bury the small reviewed collection.
+  const preferred = previousOrigin === 'real' ? 'original' : 'real'
+  const preferredPool = pool.filter((q) => q.origin === preferred)
+  const choices = shuffled(
+    preferredPool.length ? preferredPool : pool,
+    rng,
+  ).sort(
     (a, b) =>
       (lastFamily.get(a.similarity) ?? -1) -
       (lastFamily.get(b.similarity) ?? -1),

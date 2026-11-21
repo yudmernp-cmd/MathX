@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import path from 'node:path'
+import { brotliDecompressSync } from 'node:zlib'
 import { exercise, families } from '../src/math/engine'
 import { levels, points } from '../src/math/model'
 
@@ -16,10 +17,24 @@ const directory = path.resolve(process.env.MATHX_DATA_DIR || 'server-data')
 mkdirSync(directory, { recursive: true })
 const dest = path.join(directory, 'bank.sqlite'),
   temp = dest + '.' + randomUUID()
+const restored = temp + '.approved'
 const db = new DatabaseSync(temp)
 try {
   db.exec(readFileSync('server/schema.sql', 'utf8'))
-  const authorized = path.join(directory, 'approved.sqlite')
+  let authorized = path.join(directory, 'approved.sqlite')
+  const edition = process.env.MATHX_APPROVED_EDITION
+  if (edition !== undefined) {
+    const [digest, encoded] = edition.trim().split('.')
+    const bytes = brotliDecompressSync(Buffer.from(encoded || '', 'base64'), {
+      maxOutputLength: 32 * 1024 * 1024,
+    })
+    if (createHash('sha256').update(bytes).digest('hex') !== digest)
+      throw Error(
+        'La edición privada del banco no supera el control de integridad.',
+      )
+    writeFileSync(restored, bytes, { flag: 'wx', mode: 0o600 })
+    authorized = restored
+  }
   if (existsSync(authorized)) {
     db.prepare('ATTACH DATABASE ? AS approved').run(authorized)
     db.exec(
@@ -86,5 +101,6 @@ try {
   renameSync(temp, dest)
   writeFileSync(settings, JSON.stringify({ perFamily: count }))
 } finally {
+  if (existsSync(restored)) unlinkSync(restored)
   if (existsSync(temp)) unlinkSync(temp)
 }

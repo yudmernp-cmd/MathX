@@ -1,6 +1,6 @@
 # Importación de la colección privada
 
-Comprobación del 20 de noviembre de 2026. Los scripts autónomos procesaron los PDF y tradujeron borradores con un modelo local. Este informe contiene resultados agregados. El inventario con nombres y hashes, los originales y las imágenes de revisión se conservan en el espacio privado del proyecto.
+Importación del 20 de noviembre de 2026 y revisión de la primera edición del 21 de noviembre de 2026. Los scripts autónomos procesaron los PDF y tradujeron borradores con un modelo local. Este informe contiene resultados agregados. El inventario con nombres y hashes, los originales y las imágenes de revisión se conservan en el espacio privado del proyecto.
 
 | Etapa | Resultado observado |
 |---|---|
@@ -11,10 +11,10 @@ Comprobación del 20 de noviembre de 2026. Los scripts autónomos procesaron los
 | Prueba 1 | 21 cuadernillos distintos y 264 preguntas candidatas |
 | Prueba 2 | 22 cuadernillos distintos y 110 preguntas candidatas |
 | Puntuaciones | Los máximos impresos detectados suman 80 en cada uno de los 43 cuadernillos |
-| Traducción | 374 borradores por traducción local, pendientes de cotejo docente |
-| Material real liberado | 0 preguntas validadas y autorizadas. Ningún esquema de calificación identificado en la colección |
-| Reserva original | 1.836 preguntas distintas tras verificar y deduplicar, 918 por prueba |
-| Disponibilidad para el aula | Práctica original en los cinco temas y tres dificultades. Faltan al menos seis preguntas reales para iniciar P1 y dos para P2. Los puntos, los temas y las dificultades también deben permitir el ensamblaje |
+| Traducción | 374 borradores por traducción local. Tras el cotejo de la primera edición, quedan 346 pendientes |
+| Material real liberado | 28 preguntas oficiales de MAI NM con traducción cotejada, 16 de P1 y 12 de P2. Incluyen convocatorias de 2021 a 2026. Se conservan sus puntos impresos. La colección carece de esquemas de calificación identificados |
+| Reserva original | 2.076 ejercicios originales tras verificar y deduplicar, 1.038 por prueba |
+| Disponibilidad para el aula | Práctica con preferencia alterna entre orígenes cuando los filtros lo permiten. Simulacros de 80 puntos con 6 oficiales de 12 en P1 y 2 o 3 de 5 en P2 |
 
 Los 21 cuadernillos distintos de P1 tienen entre 11 y 13 preguntas. Los 22 de P2 tienen cinco. Los máximos observados por pregunta abarcan 4–10 puntos en P1 y 12–21 en P2. Estos son recuentos de la colección, no reglas universales del IB. MathX elige una estructura de 12 preguntas para P1 y de cinco para P2 y busca una suma exacta de los baremos. En P2 alterna cuál de los dos orígenes aporta la pregunta impar cuando el banco lo permite.
 
@@ -22,4 +22,4 @@ El motor original utiliza familias parametrizadas y un cálculo independiente de
 
 El cotejo automático señaló diferencias de notación en 318 borradores y puntuaciones de incisos pendientes en 188. Ambas categorías se solapan y requieren revisión. Hay 944 recortes privados vinculados a las preguntas.
 
-El total de 80 permite detectar cortes o pérdidas a escala de cuadernillo. Cada pregunta conserva sus referencias visuales para cotejar exponentes, fracciones, rotulación e incisos. La traducción, la clasificación, el esquema y el permiso de uso siguen pendientes por pregunta. Las pruebas de funcionamiento con documentos sintéticos se ejecutan en una base de datos separada.
+El total de 80 permite detectar cortes o pérdidas a escala de cuadernillo. Cada pregunta conserva sus referencias visuales para cotejar exponentes, fracciones, rotulación e incisos. La edición del aula incorpora siete figuras cotejadas y tablas en español. La revisión se realizó con Codex tras la confirmación del permiso escrito para el aula y para el cotejo con IA. Los restantes borradores siguen fuera de la edición. Las pruebas de funcionamiento con documentos sintéticos se ejecutan en una base de datos separada.

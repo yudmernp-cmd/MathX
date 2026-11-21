@@ -418,7 +418,7 @@ footer > span {
 }
 .prompt {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 10px;
   margin-bottom: 12px;
@@ -679,6 +679,16 @@ dialog::backdrop {
 }
 .preserve-lines {
   white-space: pre-line;
+}
+.question {
+  min-width: 0;
+}
+.math-table {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px 0;
 }
 .exam-image {
   max-width: 100%;

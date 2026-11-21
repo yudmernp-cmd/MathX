@@ -31,6 +31,12 @@ El historial de ejercicios y simulacros se comparte entre las pestañas del mism
 
 Los simulacros tienen un límite de 90 minutos, 80 puntos y calculadora gráfica. MathX utiliza doce preguntas en P1 y cinco en P2, tamaños observados en la colección. En P1 reparte seis preguntas de cada origen. En P2 reparte tres de un origen y dos del otro. El constructor busca los cinco temas, las tres dificultades, baremos próximos entre fuentes y estructuras distintas. Respeta cada pregunta real completa. Un banco insuficiente devuelve un diagnóstico y deja disponible la práctica por temas. El informe administrativo prueba también tamaños alternativos cuando encuentra un conflicto.
 
-El despliegue desde Git contiene la reserva original. Para incorporar preguntas reales, el docente revisa y autoriza cada registro localmente y exporta `server-data/approved.sqlite`. Puede desplegar desde ese checkout con la CLI de Vercel en el proyecto autorizado. El paquete privado se utiliza como entrada de compilación. Los PDF, imágenes fuente, borradores y secretos quedan fuera de Git y del despliegue. Los cambios de autorización y retiradas requieren reexportar y desplegar la nueva edición.
+La edición revisada se exporta con `python tools/bank.py export`. En producción, Vercel reconstruye el banco desde el secreto `MATHX_APPROVED_EDITION`, también en despliegues desde Git. Contiene la base aprobada comprimida y su suma SHA-256. Los cuadernillos y borradores permanecen en el espacio privado. Para actualizar o retirar preguntas, vuelve a exportar, reemplaza la edición y despliega. Conserva una copia privada de la edición exportada.
+
+```sh
+node tools/pack-edition.mjs | vercel env add MATHX_APPROVED_EDITION --environment production --sensitive --force --yes
+```
+
+La compilación local utiliza `server-data/approved.sqlite` cuando la variable está ausente. Una edición dañada detiene el build. Para ediciones que excedan el espacio disponible en las variables de Vercel, se puede desplegar el archivo desde el checkout privado mediante la CLI, retirando primero la variable de esa edición. En este modo, los despliegues posteriores necesitan el mismo archivo privado.
 
 [Importador y revisión](docs/banco-privado.md) · [Resultados del piloto y la colección](docs/importacion.md) · [Fuentes y condiciones académicas](docs/fuentes.md)

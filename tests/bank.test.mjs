@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync, readdirSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { hybrid, practice, levels, themes } from '../server/hybrid.mjs'
@@ -126,4 +127,72 @@ test('agota el banco de MAI sin repetir inicios, también al cambiar de prueba o
   }
   assert.equal(starts.size, new Set(db.index.map((q) => q.historyKey)).size)
   assert(starts.size > 30)
+})
+
+test('la reserva generada no oculta las preguntas oficiales en la práctica', () => {
+  const sample = fixture(1).filter((q) => q.level === 'Medio')
+  const config = { paper: 1, difficulty: 'Medio' }
+  const oneOfficial = sample.find((q) => q.origin === 'real')
+  const originals = sample.filter((q) => q.origin === 'original')
+  const pool = [...originals, oneOfficial]
+  assert.equal(practice(pool, config), oneOfficial.id)
+  assert.notEqual(
+    practice(pool, config, Math.random, new Map(), 'real'),
+    oneOfficial.id,
+  )
+  assert.equal(practice([originals[0]], config), originals[0].id)
+})
+
+test('restaura la edición privada en una compilación limpia y detecta una edición dañada', (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'mathx-edicion-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const input = path.join(directory, 'fixture.sqlite')
+  const fixtureDb = new DatabaseSync(input)
+  fixtureDb.exec(readFileSync('server/schema.sql', 'utf8'))
+  fixtureDb
+    .prepare('INSERT INTO items VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run(
+      'test',
+      'real',
+      1,
+      themes[0],
+      'Tema de prueba',
+      levels[0],
+      3,
+      'f',
+      'h',
+      '{}',
+    )
+  fixtureDb.close()
+  const edition = execFileSync(
+    process.execPath,
+    ['tools/pack-edition.mjs', input],
+    { encoding: 'utf8' },
+  )
+  const prepare = (value) =>
+    execFileSync(
+      process.execPath,
+      ['--import', 'tsx', 'tools/prepare.ts', '1'],
+      {
+        env: {
+          ...process.env,
+          MATHX_DATA_DIR: directory,
+          MATHX_APPROVED_EDITION: value,
+        },
+        stdio: 'pipe',
+      },
+    )
+  prepare(edition)
+  const bankFile = path.join(directory, 'bank.sqlite')
+  const content = readFileSync(bankFile)
+  const built = new DatabaseSync(bankFile, { readOnly: true })
+  assert.equal(
+    built.prepare("SELECT count(*) AS n FROM items WHERE origin='real'").get()
+      .n,
+    1,
+  )
+  built.close()
+  assert.throws(() => prepare('bad' + edition))
+  assert.deepEqual(readFileSync(bankFile), content)
+  assert(!readdirSync(directory).some((name) => name.endsWith('.approved')))
 })
