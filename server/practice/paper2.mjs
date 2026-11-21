@@ -348,13 +348,13 @@ export const paper2 = {
         { '6:20': '6:' + mu, '10 minutos': sigma + ' minutos' },
         {},
         { '15 y 25': early + ' y ' + late },
-        { '30 minutos': limit + ' minutos' },
+        { '30 minutos': fmt(limit) + ' minutos' },
         { '10 minutos': walk + ' minutos' },
       ],
       answers: [
         [
           null,
-          `(i) La media del retraso es ${mu} minutos. (ii) La varianza es ${sigma * sigma} minutos cuadrados.`,
+          `(i) La media del retraso es ${mu} minutos. (ii) La varianza es ${fmt(sigma * sigma)} minutos cuadrados.`,
         ],
         [
           normalCdf((late - mu) / sigma) - normalCdf((early - mu) / sigma),
