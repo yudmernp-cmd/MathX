@@ -25,15 +25,29 @@ export type Part = {
   rubric: string[]
   marks?: number
   label?: string
+  figure?: Figure
   percentage?: boolean
 }
 export type Figure =
+  | {
+      type: 'solid'
+      shape: 'sector' | 'hemisphere' | 'fold' | 'scoop'
+      radius: number
+      unit: string
+    }
   | { type: 'table'; headers: string[]; rows: (number | string)[][] }
-  | { type: 'graph'; x: string; y: string; points: [number, number][] }
+  | {
+      type: 'graph' | 'curve'
+      x: string
+      y: string
+      points: [number, number][]
+    }
 export type Problem = {
   id?: string
   historyKey?: string
-  origin?: 'original' | 'real'
+  origin?: 'original' | 'real' | 'adapted'
+  generated?: boolean
+  wordingKey?: string
   scheme?: 'revisado' | 'sin esquema'
   assets?: { id: string; part: number; alt: string }[]
   provenance?: {

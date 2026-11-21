@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "npm run bank:prepare && tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run && node --test tests/bank.test.mjs",
+    "test": "vitest run && node --test tests/*.test.mjs",
     "test:e2e": "playwright test",
     "bank:prepare": "tsx tools/prepare.ts",
     "predev": "npm run bank:prepare",

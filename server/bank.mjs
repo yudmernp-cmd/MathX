@@ -1,6 +1,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
+import { continuation, supportsTopic, wordingKey } from './practice/index.mjs'
+import { canAdapt, editionKey } from './practice/adaptations.mjs'
 import { hybrid, practice, Unavailable } from './hybrid.mjs'
 
 // A short paper and its extended version often share the first two tasks.
@@ -43,6 +45,7 @@ export function bank() {
     path.resolve(process.env.MATHX_DATA_DIR || 'server-data', 'bank.sqlite'),
     { readOnly: true },
   )
+  const reviewed = []
   const index = db
     .prepare(
       'SELECT id,paper,origin,theme,topic,level,marks,similarity,fingerprint,payload FROM items ORDER BY id',
@@ -50,13 +53,21 @@ export function bank() {
     .all()
     .map((row) => {
       const { payload, ...metadata } = row
-      return { ...metadata, historyKey: historyKey(row) }
+      const q = JSON.parse(payload)
+      if (row.origin === 'real') {
+        const key = editionKey(q)
+        if (canAdapt(key)) reviewed.push({ key, question: q, paper: row.paper })
+      }
+      return {
+        ...metadata,
+        historyKey: historyKey(row),
+        wordingKey: wordingKey(q),
+      }
     })
   const byId = new Map(index.map((row) => [row.id, row]))
   const familyByKey = new Map(
     index.map((row) => [row.historyKey, row.similarity]),
   )
-  const originByKey = new Map(index.map((row) => [row.historyKey, row.origin]))
   const lookup = db.prepare('SELECT payload FROM items WHERE id=?')
   const catalog = db
     .prepare(
@@ -66,7 +77,7 @@ export function bank() {
   current = {
     catalog,
     index,
-    questions(config, sim, recent, seed) {
+    questions(config, sim, recent, seed, draw = 0, offset = seed % 330) {
       const rng = random(seed)
       // Older clients recorded bank IDs. Resolve those against this edition too.
       const history = recent.map((key) => byId.get(key)?.historyKey ?? key)
@@ -96,16 +107,67 @@ export function bank() {
           throw error
         }
       } else {
-        const lastFamily = new Map()
-        history.forEach((key, i) => lastFamily.set(familyByKey.get(key), i))
-        const last = history.findLast((key) => originByKey.has(key))
-        ids = [
-          practice(available, config, rng, lastFamily, originByKey.get(last)),
-        ]
+        const matches = (q) =>
+          q.paper === config.paper &&
+          (!config.theme || q.theme === config.theme) &&
+          (!config.subtopic || q.topic === config.subtopic)
+        const stock = available.filter(
+          (q) => matches(q) && q.level === config.difficulty,
+        )
+        const topics = catalog.filter(
+          (q) => matches(q) && supportsTopic(q.topic),
+        )
+        const adapters = reviewed.filter(
+          (s) =>
+            matches({ ...s.question, paper: s.paper }) &&
+            s.question.level === config.difficulty,
+        )
+        const phase = draw % 4
+        const freshOfficial = stock.some((q) => q.origin === 'real')
+        // First encounter the real question, then practice new numbers. Preserve
+        // a turn for our prepared variants and rotate even in a very narrow filter.
+        if (
+          stock.length &&
+          ((!topics.length && !adapters.length) ||
+            (phase === 0 && freshOfficial) ||
+            (phase === 2 && stock.some((q) => q.origin === 'original')))
+        ) {
+          const lastFamily = new Map()
+          history.forEach((key, i) => lastFamily.set(familyByKey.get(key), i))
+          ids = [
+            practice(
+              stock,
+              config,
+              rng,
+              lastFamily,
+              phase === 0 ? undefined : 'real',
+            ),
+          ]
+        } else if (
+          adapters.length &&
+          (phase === 1 || !topics.length || (phase === 0 && !freshOfficial))
+        ) {
+          const source = adapters[Math.floor(rng() * adapters.length)]
+          return [continuation(null, config, draw, offset, source)]
+        } else if (topics.length) {
+          return [
+            continuation(
+              topics[Math.floor(rng() * topics.length)],
+              config,
+              draw,
+              offset,
+            ),
+          ]
+        } else
+          throw new Unavailable(
+            'No hay una familia verificada para esta selección.',
+            { paper: config.paper },
+          )
       }
       return ids.map((id) => ({
         ...JSON.parse(lookup.get(id).payload),
         historyKey: byId.get(id).historyKey,
+        wordingKey: byId.get(id).wordingKey,
       }))
     },
     asset(id) {

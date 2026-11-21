@@ -1,34 +1,38 @@
 import { scaleLinear } from 'd3-scale'
 import { line } from 'd3-shape'
 import katex from 'katex'
+import { SolidFigure } from './SolidFigure'
 import type { Figure } from './math/model'
 export function MathText({ text }: { text: string }) {
   return (
     <>
-      {text
-        .split('$')
-        .map((t, i) =>
-          i % 2 ? (
-            <span
-              key={i}
-              className={t.includes('\\begin{array}') ? 'math-table' : undefined}
-              dangerouslySetInnerHTML={{
-                __html: katex.renderToString(t, {
-                  throwOnError: false,
-                  trust: false,
-                  output: 'htmlAndMathml',
-                }),
-              }}
-            />
-          ) : (
-            <span key={i}>{t}</span>
-          ),
-        )}
+      {text.split('$').map((t, i) =>
+        i % 2 ? (
+          <span
+            key={i}
+            className={
+              t.includes('\\begin{array}')
+                ? 'math-table math-expression'
+                : 'math-expression'
+            }
+            dangerouslySetInnerHTML={{
+              __html: katex.renderToString(t, {
+                throwOnError: false,
+                trust: false,
+                output: 'htmlAndMathml',
+              }),
+            }}
+          />
+        ) : (
+          <span key={i}>{t}</span>
+        ),
+      )}
     </>
   )
 }
 const linePath = line<[number, number]>()
 export function DataFigure({ data }: { data: Figure }) {
+  if (data.type === 'solid') return <SolidFigure data={data} />
   if (data.type === 'table')
     return (
       <div className="table-wrap">
@@ -52,6 +56,52 @@ export function DataFigure({ data }: { data: Figure }) {
         </table>
       </div>
     )
+  if (data.type === 'curve') {
+    const x = scaleLinear()
+      .domain([data.points[0][0], data.points.at(-1)![0]])
+      .range([52, 355])
+    const heights = data.points.map((p) => p[1])
+    const y = scaleLinear()
+      .domain([Math.min(0, ...heights), Math.max(0, ...heights)])
+      .nice(5)
+      .range([165, 22])
+    return (
+      <figure>
+        <svg
+          viewBox="0 0 410 208"
+          role="img"
+          aria-label={data.y + ' en función de ' + data.x}
+        >
+          <path d={`M52 20V165 M52 ${y(0)}H355`} fill="none" stroke="#617574" />
+          {x.ticks(6).map((t) => (
+            <g key={t}>
+              <path d={`M${x(t)} ${y(0)}v4`} stroke="#617574" />
+              <text x={x(t)} y="184" textAnchor="middle">
+                {t}
+              </text>
+            </g>
+          ))}
+          {y.ticks(5).map((h) => (
+            <text key={h} x="46" y={y(h) + 4} textAnchor="end">
+              {h}
+            </text>
+          ))}
+          <text x="4" y="14">
+            {data.y}
+          </text>
+          <text x="295" y="202">
+            {data.x}
+          </text>
+          <path
+            d={linePath(data.points.map(([t, h]) => [x(t), y(h)])) || ''}
+            fill="none"
+            stroke="#18715a"
+            strokeWidth="2.5"
+          />
+        </svg>
+      </figure>
+    )
+  }
   const maxX = Math.max(...data.points.map((p) => p[0])),
     maxY = Math.max(...data.points.map((p) => p[1]))
   const x = scaleLinear().domain([0, maxX]).range([55, 335]),

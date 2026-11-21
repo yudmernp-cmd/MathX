@@ -133,9 +133,14 @@ export default async function handler(req, res) {
         theme,
         subtopic,
         recent = [],
+        draw,
+        offset,
       } = await read(req, limit)
       if (
         ![1, 2].includes(paper) ||
+        (draw !== undefined && (!Number.isSafeInteger(draw) || draw < 0)) ||
+        (offset !== undefined &&
+          (!Number.isInteger(offset) || offset < 0 || offset >= 330)) ||
         !Array.isArray(recent) ||
         recent.length > 15000 ||
         !recent.every((s) => typeof s === 'string' && s.length < 160) ||
@@ -153,7 +158,14 @@ export default async function handler(req, res) {
           ...(!sim && { theme, subtopic }),
         }
       const seed = randomInt(2 ** 32)
-      const questions = bank().questions(config, sim, recent, seed)
+      const questions = bank().questions(
+        config,
+        sim,
+        recent,
+        seed,
+        draw ?? (recent.length ? seed % 330 : 0),
+        offset,
+      )
       return send(200, {
         mode: sim ? 'Simulacros' : 'Ejercicios',
         config,

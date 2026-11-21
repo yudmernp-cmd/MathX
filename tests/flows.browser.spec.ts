@@ -125,12 +125,21 @@ test('dos pestañas consumen formas distintas y el historial sobrevive al cierre
   await login(page)
   await selectVoronoi(page)
   await page.getByRole('button', { name: 'Empezar práctica' }).click()
-  await expect(page.getByRole('alert')).toContainText(
-    'No quedan ejercicios inéditos',
-  )
   await expect(
     page.getByRole('heading', { name: 'Ejercicio individual' }),
-  ).toHaveCount(0)
+  ).toBeVisible()
+  const next = await saved(page)
+  const used = new Set([first.historyKey, second.historyKey])
+  expect(used.has(next.questions[0].historyKey)).toBe(false)
+  used.add(next.questions[0].historyKey)
+  for (let i = 0; i < 12; i++) {
+    await page.getByRole('button', { name: 'Siguiente ejercicio' }).click()
+    await expect.poll(async () => (await saved(page)).ordinal).toBe(i + 2)
+    const q = (await saved(page)).questions[0]
+    expect(q.topic).toBe('Diagramas de Voronoi')
+    expect(used.has(q.historyKey)).toBe(false)
+    used.add(q.historyKey)
+  }
 })
 for (const auto of [false, true])
   test(
@@ -208,4 +217,41 @@ test('una clave incorrecta conserva cerrado el catálogo', async ({ page }) => {
   expect(
     (await page.request.get('/api/classroom?action=catalog')).status(),
   ).toBe(401)
+})
+
+test('descarta una variante ya vista antes de mostrar otro ejercicio', async ({
+  page,
+}) => {
+  test.skip(
+    !!process.env.MATHX_TEST_URL,
+    'Comprueba el reintento con una respuesta controlada.',
+  )
+  await login(page)
+  await page
+    .getByLabel('Tema', { exact: true })
+    .selectOption('Geometría y trigonometría')
+  await page
+    .getByLabel('Subtema', { exact: true })
+    .selectOption('Diagramas de Voronoi')
+  await page.getByRole('button', { name: 'Empezar práctica' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Ejercicio individual' }),
+  ).toBeVisible()
+  const first = await saved(page)
+  expect(first.questions[0].generated).toBe(true)
+  const draws: number[] = []
+  await page.route('**/api/classroom?action=practice', async (route) => {
+    const body = route.request().postDataJSON()
+    draws.push(body.draw)
+    expect(body.recent).not.toContain(first.questions[0].historyKey)
+    if (draws.length === 1) await route.fulfill({ json: first })
+    else await route.continue()
+  })
+  await page.getByRole('button', { name: 'Siguiente ejercicio' }).click()
+  await expect.poll(async () => (await saved(page)).ordinal).toBe(2)
+  expect(draws.length).toBeGreaterThanOrEqual(2)
+  expect(draws[1]).toBe(draws[0] + 1)
+  expect((await saved(page)).questions[0].historyKey).not.toBe(
+    first.questions[0].historyKey,
+  )
 })

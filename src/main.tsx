@@ -99,10 +99,10 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
     setLoading(true)
     setError('')
     try {
-      const next = await withHistory((recent) =>
+      const next = await withHistory((ticket) =>
         request<Run>(mode === 'Ejercicios' ? 'practice' : 'exam', {
           ...config,
-          recent,
+          ...ticket,
         }),
       )
       if (!next) return

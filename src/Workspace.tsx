@@ -124,7 +124,11 @@ export function Workspace({ run, change, home, another }: Props) {
               {'PREGUNTA ' + (sim ? run.index + 1 : run.ordinal || 1)}
             </span>
             <span>
-              {q.origin === 'real' ? 'Pregunta de examen' : 'Original de MathX'}{' '}
+              {q.origin === 'real'
+                ? 'Pregunta de examen'
+                : q.origin === 'adapted'
+                  ? 'Variante de examen · datos modificados'
+                  : 'Original de MathX'}{' '}
               · {points(q)} puntos · {q.level}
             </span>
           </div>
@@ -133,8 +137,9 @@ export function Workspace({ run, change, home, another }: Props) {
           <p className="stem preserve-lines">
             <MathText text={q.stem} />
           </p>
-          {q.origin === 'real' && q.provenance && (
+          {(q.origin === 'real' || q.origin === 'adapted') && q.provenance && (
             <p className="hint">
+              {q.origin === 'adapted' && 'Basada en '}
               {[
                 q.provenance.session,
                 q.provenance.year,
@@ -189,6 +194,7 @@ export function Workspace({ run, change, home, another }: Props) {
                       alt={a.alt}
                     />
                   ))}
+                {p.figure && <DataFigure data={p.figure} />}
                 {partMarks(p) === 0 ? null : p.value === null ? (
                   <textarea
                     id={'answer' + id}
@@ -259,9 +265,11 @@ export function Workspace({ run, change, home, another }: Props) {
                     ))}
                     {!!p.rubric.length && (
                       <strong>
-                        {q.origin === 'real'
-                          ? 'Criterios de revisión'
-                          : 'Criterios · 1 punto por criterio'}
+                        {q.origin === 'adapted'
+                          ? 'Guía de revisión de MathX'
+                          : q.origin === 'real'
+                            ? 'Criterios de revisión'
+                            : 'Criterios · 1 punto por criterio'}
                       </strong>
                     )}
                     <ul>

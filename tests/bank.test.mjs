@@ -92,7 +92,7 @@ for (const paper of [1, 2]) {
   })
 }
 
-test('agota el banco de MAI sin repetir inicios, también al cambiar de prueba o dificultad', (t) => {
+test('continúa incluso después de consumir todas las preguntas de la reserva', (t) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'mathx-history-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const oldDir = process.env.MATHX_DATA_DIR
@@ -101,34 +101,23 @@ test('agota el banco de MAI sin repetir inicios, también al cambiar de prueba o
     if (oldDir === undefined) delete process.env.MATHX_DATA_DIR
     else process.env.MATHX_DATA_DIR = oldDir
   })
-  execFileSync(process.execPath, ['--import', 'tsx', 'tools/prepare.ts', '8'])
-  const db = bank(),
-    seen = [],
-    ids = new Set(),
-    starts = new Set()
-  for (const paper of [1, 2]) {
+  execFileSync(process.execPath, ['--import', 'tsx', 'tools/prepare.ts', '2'])
+  const db = bank()
+  const consumed = db.index.map((q, i) => (i % 2 ? q.historyKey : q.id))
+  for (const { paper, theme, topic } of db.catalog)
     for (const difficulty of levels) {
-      for (;;) {
-        let q
-        try {
-          ;[q] = db.questions({ paper, difficulty }, false, seen, 123)
-        } catch (e) {
-          assert.match(e.message, /No quedan ejercicios inéditos/)
-          break
-        }
-        assert(!ids.has(q.id))
-        assert(!starts.has(q.historyKey))
-        ids.add(q.id)
-        starts.add(q.historyKey)
-        // Explicitly exercise migration of the old session IDs.
-        seen.push(seen.length % 2 ? q.historyKey : q.id)
+      const config = { paper, theme, subtopic: topic, difficulty }
+      const seen = new Set()
+      for (let draw = 15000; draw < 15020; draw++) {
+        const [q] = db.questions(config, false, consumed, 7, draw, 9)
+        assert.equal(q.topic, topic)
+        assert.equal(q.level, difficulty)
+        assert(q.generated)
+        assert(!seen.has(q.historyKey))
+        seen.add(q.historyKey)
       }
     }
-  }
-  assert.equal(starts.size, new Set(db.index.map((q) => q.historyKey)).size)
-  assert(starts.size > 30)
 })
-
 test('la reserva generada no oculta las preguntas oficiales en la práctica', () => {
   const sample = fixture(1).filter((q) => q.level === 'Medio')
   const config = { paper: 1, difficulty: 'Medio' }

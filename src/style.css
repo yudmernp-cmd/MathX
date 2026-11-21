@@ -683,11 +683,14 @@ dialog::backdrop {
 .question {
   min-width: 0;
 }
-.math-table {
+.math-expression {
   display: inline-block;
   vertical-align: middle;
   max-width: 100%;
   overflow-x: auto;
+  padding: 2px 1px;
+}
+.math-table {
   padding: 4px 0;
 }
 .exam-image {
