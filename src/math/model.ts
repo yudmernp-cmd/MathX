@@ -32,6 +32,7 @@ export type Figure =
   | { type: 'graph'; x: string; y: string; points: [number, number][] }
 export type Problem = {
   id?: string
+  historyKey?: string
   origin?: 'original' | 'real'
   scheme?: 'revisado' | 'sin esquema'
   assets?: { id: string; part: number; alt: string }[]

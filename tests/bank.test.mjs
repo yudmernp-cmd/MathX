@@ -1,6 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { hybrid, practice, levels, themes } from '../server/hybrid.mjs'
+import { bank } from '../server/bank.mjs'
 // Explicit test-only metadata, never used for student sessions.
 function fixture(paper) {
   const rows = []
@@ -76,6 +81,49 @@ for (const paper of [1, 2]) {
     assert.equal(q.theme, config.theme)
     assert.equal(q.topic, config.subtopic)
     assert.equal(q.level, config.difficulty)
-    assert.notEqual(id, practice(rows, config, [id]))
+    assert.notEqual(
+      id,
+      practice(
+        rows.filter((r) => r.id !== id),
+        config,
+      ),
+    )
   })
 }
+
+test('agota el banco de MAI sin repetir inicios, también al cambiar de prueba o dificultad', (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'mathx-history-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const oldDir = process.env.MATHX_DATA_DIR
+  process.env.MATHX_DATA_DIR = directory
+  t.after(() => {
+    if (oldDir === undefined) delete process.env.MATHX_DATA_DIR
+    else process.env.MATHX_DATA_DIR = oldDir
+  })
+  execFileSync(process.execPath, ['--import', 'tsx', 'tools/prepare.ts', '8'])
+  const db = bank(),
+    seen = [],
+    ids = new Set(),
+    starts = new Set()
+  for (const paper of [1, 2]) {
+    for (const difficulty of levels) {
+      for (;;) {
+        let q
+        try {
+          ;[q] = db.questions({ paper, difficulty }, false, seen, 123)
+        } catch (e) {
+          assert.match(e.message, /No quedan ejercicios inéditos/)
+          break
+        }
+        assert(!ids.has(q.id))
+        assert(!starts.has(q.historyKey))
+        ids.add(q.id)
+        starts.add(q.historyKey)
+        // Explicitly exercise migration of the old session IDs.
+        seen.push(seen.length % 2 ? q.historyKey : q.id)
+      }
+    }
+  }
+  assert.equal(starts.size, new Set(db.index.map((q) => q.historyKey)).size)
+  assert(starts.size > 30)
+})

@@ -163,6 +163,63 @@ export function referenceAnswers(
         n,
       ]
     }
+    case 'levantamiento': {
+      const near = 5 * r(3, 8),
+        gap = 5 * r(2, 5),
+        rise = 3 * r(4, 10)
+      const a = Math.atan2(rise, near),
+        b = Math.atan2(rise, near + gap)
+      const distance = (gap * Math.tan(b)) / (Math.tan(a) - Math.tan(b))
+      const height = distance * Math.tan(a)
+      if (v === 0)
+        return [
+          easy ? height : distance,
+          hard ? height : height + 1.5,
+          height / Math.sin(b),
+          ((a - b) * 180) / Math.PI,
+        ]
+      return [
+        easy ? height / (gap / 5) : (a * 180) / Math.PI,
+        hard ? height / (3 * Math.tan(a)) : height,
+        height / Math.tan(Math.PI / 3),
+        (near + gap) * Math.tan(Math.PI / 3),
+      ]
+    }
+    case 'transmision': {
+      const b = r(5, 8) / 10,
+        power = 100 * r(4, 8),
+        km = r(2, 5)
+      const measured = power * b * b
+      if (v === 0) {
+        let low = 0,
+          high = 10 * km
+        for (let step = 0; step < 60; step++) {
+          const mid = (low + high) / 2
+          if (power * b ** (mid / km) > power / 2) low = mid
+          else high = mid
+        }
+        const midpoint = Math.sqrt(measured * power)
+        return [
+          easy ? (measured / power) * 100 : midpoint / power,
+          hard ? (low + high) / 2 : midpoint,
+          0.9 * midpoint,
+          (power * 200) / measured,
+        ]
+      }
+      const limit = (b ** km + b ** (km + 1)) / 2
+      let fraction = 1,
+        layers = 0
+      while (fraction > limit) {
+        fraction *= b
+        layers++
+      }
+      return [
+        easy ? measured : layers,
+        hard ? layers + 1 : ((power - power * b) / power) * 100,
+        layers * (3 * km),
+        Math.exp(Math.log(limit) / 2) * 100,
+      ]
+    }
     case 'exponenciales': {
       const initial = 4 * r(2, 6),
         base = r(2, 3),

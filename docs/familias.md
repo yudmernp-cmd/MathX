@@ -11,6 +11,8 @@
 | Ajuste | Regresión, residuos, correlación de Pearson | Ajustar una recta desde observaciones o evaluar una recta propuesta. Temperaturas equiespaciadas y distintas, residuos no nulos ortogonales a 1 y a x. |
 | Lotes | Esperanza, complemento, distribución binomial y umbral | Partir de la probabilidad o deducirla de la media. Número entero de señales, independencia y probabilidad estrictamente entre cero y uno. |
 | Exponenciales | Factor, asíntota, parámetros y cambio de escala | Reconstruir un modelo desplazado a partir de tres observaciones o recuperar la abscisa de una lectura. La calculadora permite resolver umbrales no enteros. |
+| Transmisión | Atenuación exponencial, distancia media de potencia y umbral discreto | Inferir pérdidas en un cable a partir de dos lecturas o dimensionar un filtro formado por láminas enteras. El umbral queda entre dos transmisiones alcanzables. |
+| Medición de alturas | Tangentes, ángulos de elevación y semejanza | Triangular desde dos estaciones o estimar una altura mediante sombras simultáneas. Las distancias y las alturas son positivas. |
 | Geométrica | Razón, suma parcial e índices | Partir de una fase inicial, dos fases separadas o una suma y una diferencia. Tamaños enteros positivos e índices crecientes. |
 | Voronoi | Mediatrices, distancias y fronteras | Construir las regiones a partir de tres centros o reconstruir un centro por reflexión. Los sitios forman un triángulo no degenerado. |
 | Tangentes | Derivada, ecuación de tangente y error | Derivar una cuadrática o recuperar un coeficiente desde una pendiente conocida. El error es cuadrático en el desplazamiento. |

@@ -46,6 +46,7 @@ function select(pools, realCount, total, rng) {
       }
   }
   const seen = new Set(),
+    openings = new Set(),
     selected = [],
     levelCounts = [0, 0, 0]
 
@@ -68,6 +69,7 @@ function select(pools, realCount, total, rng) {
     const options = pools[origin].filter(
       (q) =>
         !seen.has(q.similarity) &&
+        !openings.has(q.historyKey ?? q.id) &&
         reachable[i + 1].has(80 - marks - q.marks) &&
         levelCounts[q.li] < Math.ceil(total / 3) + 1,
     )
@@ -81,6 +83,7 @@ function select(pools, realCount, total, rng) {
       const next = marks + q.marks
       if (i + 1 === total && next !== 80) continue
       seen.add(q.similarity)
+      openings.add(q.historyKey ?? q.id)
       selected.push(q)
       levelCounts[q.li]++
       if (
@@ -96,6 +99,7 @@ function select(pools, realCount, total, rng) {
         return true
       selected.pop()
       seen.delete(q.similarity)
+      openings.delete(q.historyKey ?? q.id)
       levelCounts[q.li]--
     }
     return false
@@ -164,7 +168,12 @@ export function hybrid(
     details,
   )
 }
-export function practice(rows, config, recent = [], rng = Math.random) {
+export function practice(
+  rows,
+  config,
+  rng = Math.random,
+  lastFamily = new Map(),
+) {
   const pool = rows.filter(
     (q) =>
       q.paper === config.paper &&
@@ -173,17 +182,16 @@ export function practice(rows, config, recent = [], rng = Math.random) {
       (!config.subtopic || q.topic === config.subtopic),
   )
   if (!pool.length)
-    throw new Unavailable('No hay preguntas validadas para esta selección.', {
-      paper: config.paper,
-    })
-  const previous = new Map(
-    rows.filter((q) => recent.includes(q.id)).map((q) => [q.id, q.similarity]),
-  )
-  const history = recent.map((id) => previous.get(id))
+    throw new Unavailable(
+      'No quedan ejercicios inéditos para esta selección. Prueba otro subtema o dificultad.',
+      {
+        paper: config.paper,
+      },
+    )
   const choices = shuffled(pool, rng).sort(
     (a, b) =>
-      recent.lastIndexOf(a.id) - recent.lastIndexOf(b.id) ||
-      history.lastIndexOf(a.similarity) - history.lastIndexOf(b.similarity),
+      (lastFamily.get(a.similarity) ?? -1) -
+      (lastFamily.get(b.similarity) ?? -1),
   )
   return choices[0].id
 }

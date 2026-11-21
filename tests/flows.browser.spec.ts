@@ -43,10 +43,13 @@ test('acceso privado, filtros, corrección, salida y persistencia', async ({
     .selectOption('Funciones exponenciales')
   await page.getByRole('button', { name: 'Difícil', exact: true }).click()
   await page.getByRole('button', { name: 'Empezar práctica' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Ejercicio individual' }),
+  ).toBeVisible()
   const q = (await saved(page)).questions[0]
   expect(q).toMatchObject({
     origin: 'original',
-    family: 'exponenciales',
+    topic: 'Funciones exponenciales',
     level: 'Difícil',
   })
   await page.locator('#answer0-0').fill(String(q.parts[0].value))
@@ -85,6 +88,50 @@ test('impide entregar un simulacro compuesto únicamente por originales', async 
   )
   await expect(page.locator('.timer')).toHaveCount(0)
 })
+
+test('dos pestañas consumen formas distintas y el historial sobrevive al cierre de sesión', async ({
+  page,
+  context,
+}) => {
+  test.skip(!!process.env.MATHX_TEST_URL, 'Requiere la reserva de desarrollo.')
+  await login(page)
+  const tab = await context.newPage()
+  await tab.goto('/')
+  async function selectVoronoi(p: Page) {
+    await p
+      .getByLabel('Tema', { exact: true })
+      .selectOption('Geometría y trigonometría')
+    await p
+      .getByLabel('Subtema', { exact: true })
+      .selectOption('Diagramas de Voronoi')
+    await p.getByRole('button', { name: 'Difícil', exact: true }).click()
+  }
+  await Promise.all([selectVoronoi(page), selectVoronoi(tab)])
+  await Promise.all(
+    [page, tab].map(async (p) => {
+      await p.getByRole('button', { name: 'Empezar práctica' }).click()
+      await expect(
+        p.getByRole('heading', { name: 'Ejercicio individual' }),
+      ).toBeVisible()
+    }),
+  )
+  const first = (await saved(page)).questions[0],
+    second = (await saved(tab)).questions[0]
+  expect(first.historyKey).toBeTruthy()
+  expect(first.historyKey).not.toBe(second.historyKey)
+  await tab.close()
+  await page.getByRole('button', { name: 'Salir del aula' }).click()
+  await expect(page.getByLabel('Clave compartida de la clase')).toBeVisible()
+  await login(page)
+  await selectVoronoi(page)
+  await page.getByRole('button', { name: 'Empezar práctica' }).click()
+  await expect(page.getByRole('alert')).toContainText(
+    'No quedan ejercicios inéditos',
+  )
+  await expect(
+    page.getByRole('heading', { name: 'Ejercicio individual' }),
+  ).toHaveCount(0)
+})
 for (const auto of [false, true])
   test(
     'simulacro híbrido, navegación y entrega ' +
@@ -103,6 +150,19 @@ for (const auto of [false, true])
       await expect(page.locator('.timer')).toBeVisible()
       const run = await saved(page),
         i = run.questions.findIndex((q) => q.origin === 'real')
+      const reserved = run.questions.map((q) => q.historyKey)
+      const tab = await page.context().newPage()
+      await tab.goto('/')
+      await tab.getByRole('button', { name: 'Simulacros', exact: true }).click()
+      await tab.getByRole('button', { name: 'Prueba 2', exact: true }).click()
+      await tab.getByRole('button', { name: 'Empezar simulacro' }).click()
+      await expect(tab.locator('.timer')).toBeVisible()
+      const later = await saved(tab)
+      await tab.close()
+      expect(later.questions).toHaveLength(5)
+      expect(
+        later.questions.every((q) => !reserved.includes(q.historyKey)),
+      ).toBe(true)
       await page
         .getByRole('button', { name: 'Pregunta ' + (i + 1), exact: true })
         .click()

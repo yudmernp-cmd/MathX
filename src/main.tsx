@@ -6,6 +6,7 @@ import { Setup, type Catalog } from './Setup'
 import { Workspace } from './Workspace'
 import { restore, storageKey, type Run, type Mode } from './math/session'
 import type { Config } from './math/model'
+import { withHistory, HistoryError } from './practiceHistory'
 
 class ApiError extends Error {
   constructor(
@@ -37,7 +38,7 @@ async function request<T>(action: string, data?: unknown): Promise<T> {
 }
 function clearSession() {
   try {
-    for (const k of [storageKey, 'mathx.session.1', 'mathx.recientes'])
+    for (const k of [storageKey, 'mathx.session.1'])
       sessionStorage.removeItem(k)
   } catch {}
 }
@@ -57,7 +58,7 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
       if (e instanceof ApiError && e.status === 401) onExpired()
       else
         setError(
-          e instanceof ApiError
+          e instanceof ApiError || e instanceof HistoryError
             ? e.message
             : 'No se pudo conectar con el aula. Vuelve a intentarlo.',
         )
@@ -69,6 +70,9 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
     request<Catalog>('catalog').then(setCatalog).catch(report)
   }, [report])
   useEffect(loadCatalog, [loadCatalog])
+  useEffect(() => {
+    withHistory().catch(report)
+  }, [report])
   useEffect(() => {
     if (!run) return
     try {
@@ -95,26 +99,19 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
     setLoading(true)
     setError('')
     try {
-      let recent: string[] = []
-      try {
-        recent = JSON.parse(sessionStorage.getItem('mathx.recientes') || '[]')
-      } catch {}
-      const next = await request<Run>(
-        mode === 'Ejercicios' ? 'practice' : 'exam',
-        { ...config, recent },
+      const next = await withHistory((recent) =>
+        request<Run>(mode === 'Ejercicios' ? 'practice' : 'exam', {
+          ...config,
+          recent,
+        }),
       )
+      if (!next) return
       next.ordinal = run?.mode === 'Ejercicios' ? (run.ordinal || 1) + 1 : 1
-      if (mode === 'Ejercicios')
-        try {
-          sessionStorage.setItem(
-            'mathx.recientes',
-            JSON.stringify([...recent, next.questions[0].id].slice(-18)),
-          )
-        } catch {}
       setRun(next)
       window.scrollTo(0, 0)
     } catch (e) {
       report(e)
+      window.scrollTo(0, 0)
     } finally {
       pending.current = false
       setLoading(false)

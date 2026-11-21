@@ -1,6 +1,8 @@
 import { loans } from './finance'
 import { accumulation } from './accumulation'
 import { exponential } from './functions'
+import { transmission } from './transmission'
+import { survey } from './survey'
 import { voronoi } from './geometry'
 import { tangents } from './tangents'
 import { geometric } from './sequences'
@@ -25,6 +27,8 @@ export const families = [
   regression,
   binomial,
   exponential,
+  transmission,
+  survey,
   voronoi,
   tangents,
   geometric,

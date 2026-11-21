@@ -29,7 +29,12 @@ for (let i = 0; i < 15; i++)
       topic: 'Documento de prueba sintético',
       level: levels[i % 3],
       scheme: 'sin esquema',
-      stem: 'Material sintético exclusivo de las pruebas del programa.',
+      stem:
+        'Caso sintético ' +
+        i +
+        ' con ' +
+        marks +
+        ' puntos para las pruebas del programa.',
       parts: [
         {
           label: '(a)',

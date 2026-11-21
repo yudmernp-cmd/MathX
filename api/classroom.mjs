@@ -30,13 +30,13 @@ function session(req) {
     ? Number(exp) * 1000
     : 0
 }
-async function read(req) {
+async function read(req, limit = 8192) {
   if (req.body !== undefined)
     return typeof req.body === 'string' ? JSON.parse(req.body) : req.body
   let text = ''
   for await (const chunk of req) {
     text += chunk
-    if (text.length > 8192) throw Error('body')
+    if (Buffer.byteLength(text) > limit) throw Error('body')
   }
   return JSON.parse(text || '{}')
 }
@@ -82,7 +82,9 @@ export default async function handler(req, res) {
     }
   }
   try {
-    if (req.method === 'POST' && Number(req.headers['content-length']) > 8192)
+    const selection = ['practice', 'exam'].includes(action)
+    const limit = selection ? 1024 * 1024 : 8192
+    if (req.method === 'POST' && Number(req.headers['content-length']) > limit)
       return send(413, { error: 'Solicitud demasiado extensa.' })
     if (req.method === 'POST' && action === 'login') {
       const body = await read(req)
@@ -124,18 +126,18 @@ export default async function handler(req, res) {
       res.end(Buffer.from(data))
       return
     }
-    if (req.method === 'POST' && ['practice', 'exam'].includes(action)) {
+    if (req.method === 'POST' && selection) {
       const {
         paper,
         difficulty,
         theme,
         subtopic,
         recent = [],
-      } = await read(req)
+      } = await read(req, limit)
       if (
         ![1, 2].includes(paper) ||
         !Array.isArray(recent) ||
-        recent.length > 20 ||
+        recent.length > 15000 ||
         !recent.every((s) => typeof s === 'string' && s.length < 160) ||
         (action === 'practice' &&
           (!levels.includes(difficulty) ||
