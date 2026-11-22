@@ -53,6 +53,7 @@ export type Problem = {
   historyKey?: string
   origin?: 'original' | 'real' | 'adapted'
   individual?: boolean
+  composed?: boolean
   structureKey?: string
   patternKey?: string
   generated?: boolean

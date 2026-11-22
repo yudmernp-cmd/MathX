@@ -79,7 +79,7 @@ test('aula privada, pregunta única, corrección, solución y nueva generación'
   await expect(page.getByText('PREGUNTA 2', { exact: true })).toBeVisible()
   expect((await saved(page)).questions[0].structureKey).not.toBe(q.structureKey)
 })
-test('dos pestañas, salida del aula y agotamiento antes de repetir una estructura', async ({
+test('dos pestañas y continuación tras consumir las cuatro estructuras de una selección', async ({
   page,
   context,
 }) => {
@@ -98,19 +98,53 @@ test('dos pestañas, salida del aula y agotamiento antes de repetir una estructu
   const third = await start(page)
   expect(used.has(third.structureKey)).toBe(false)
   used.add(third.structureKey)
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 12; i++) {
     const response = page.waitForResponse((r) =>
       r.url().includes('action=practice'),
     )
     await button(page, 'Siguiente ejercicio').click()
-    if ((await response).status() === 409) break
+    expect((await response).status()).toBe(200)
     await expect.poll(async () => (await saved(page)).ordinal).toBe(i + 2)
     const q = (await saved(page)).questions[0]
     expect(used.has(q.structureKey)).toBe(false)
     used.add(q.structureKey)
   }
-  expect(used.size).toBeGreaterThanOrEqual(4)
-  await expect(page.getByRole('alert')).toContainText('Has agotado')
+  expect(used.size).toBe(15)
+  const last = (await saved(page)).questions[0]
+  expect(last.composed).toBe(true)
+  await page.reload()
+  await page.getByPlaceholder('Tu respuesta').fill(String(last.parts[0].value))
+  await button(page, 'Comprobar respuesta').click()
+  await expect(page.locator('.feedback')).toHaveText('Resultado correcto')
+  await button(page, 'Ver solución').click()
+  await expect(page.locator('.solution')).toBeVisible()
+  // Replay a saved composite with changed numbers after reload. The server never
+  // receives the entire series history, but IndexedDB must reject its shape.
+  let served = 0
+  await page.route('**/api/classroom?action=practice', async (route) => {
+    const body = route.request().postDataJSON()
+    expect(body.recent).not.toContain(last.structureKey)
+    if (served++ > 0) return route.continue()
+    const previous = await saved(page)
+    return route.fulfill({
+      json: {
+        ...previous,
+        questions: [
+          {
+            ...last,
+            wordingKey: 'contenido-alternativo',
+            patternKey: 'otra-redaccion',
+            stem: 'Otros datos.',
+          },
+        ],
+      },
+    })
+  })
+  await button(page, 'Siguiente ejercicio').click()
+  await expect.poll(async () => (await saved(page)).ordinal).toBe(14)
+  expect(served).toBeGreaterThanOrEqual(2)
+  expect(used.has((await saved(page)).questions[0].structureKey)).toBe(false)
+  await page.unroute('**/api/classroom?action=practice')
   await button(page, 'Configuración').click()
   await select(page, 'Funciones', 'Intermedio')
   expect((await start(page)).level).toBe('Medio')

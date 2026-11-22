@@ -84,7 +84,7 @@ export function bank() {
     questions(config, sim, recent, seed, draw = 0, offset = seed % 330) {
       const rng = random(seed)
       const seen = new Set(recent)
-      if (!sim) return [individual(config, seen, rng)]
+      if (!sim) return [individual(config, seen, rng, draw, offset)]
 
       const actual = new Map()
       const rows = index.filter(

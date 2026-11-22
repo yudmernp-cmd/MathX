@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import katex from 'katex'
 import { existsSync } from 'node:fs'
 import { structures, materialize } from '../server/individual/index.mjs'
+import { inputKinds } from '../server/individual/composition/series.mjs'
 import { structureKey } from '../server/individual/model.mjs'
 import { bank } from '../server/bank.mjs'
 import { themes, levels } from '../server/hybrid.mjs'
@@ -81,37 +82,120 @@ test('las huellas ignoran coeficientes, contexto y operaciones algebraicas equiv
     structureKey(['multiply', ['reciprocal', 'run'], 'rise']),
   )
 })
-test('configuración, reproducibilidad y agotamiento compartido entre todas las selecciones', () => {
+test('el historial de los cuatro originales da paso a una serie reproducible por tema y nivel', () => {
   const db = bank()
-  for (const level of levels) {
-    const history = []
+  for (const difficulty of levels)
     for (const theme of themes) {
-      const config = { paper: 1, difficulty: level, theme }
-      const count = structures.filter(
-        (e) => e.level === level && e.theme === theme,
-      ).length
-      assert.ok(count >= 4)
-      for (let n = 0; n < count; n++) {
-        const seed = 711 + n
-        const [q] = db.questions(config, false, history, seed)
-        assert.deepEqual(
-          q,
-          db.questions({ ...config, paper: 2 }, false, history, seed)[0],
-        )
+      const config = { paper: 1, difficulty, theme }
+      const previous = structures
+        .filter((e) => e.theme === theme && e.level === difficulty)
+        .map((e) => e.key)
+      const usedShapes = new Set(previous),
+        templates = new Set(),
+        content = new Set()
+      for (let draw = 0; draw < 1000; draw++) {
+        const seed = (draw * 1777) >>> 0
+        const [q] = db.questions(config, false, previous, seed, draw, 4)
+        for (const [key, seen] of [
+          [q.structureKey, usedShapes],
+          [q.wordingKey, content],
+          [q.patternKey, templates],
+        ]) {
+          assert.ok(!seen.has(key), [theme, difficulty, draw, key])
+          seen.add(key)
+        }
+        assert.ok(q.individual && q.composed)
         assert.equal(q.theme, theme)
-        assert.equal(q.level, level)
-        assert.ok(!history.includes(q.structureKey))
-        history.push(q.structureKey)
+        assert.equal(q.level, difficulty)
+        assert.equal(q.parts.length, 1)
+        const p = q.parts[0]
+        assert.equal((q.stem + p.ask).split('¿').length, 2)
+        assert.ok(correct(String(p.value), p.value, p.percentage, p.unit))
+        if (draw < 12) {
+          assert.deepEqual(
+            q,
+            db.questions(
+              { ...config, paper: 2 },
+              false,
+              previous,
+              seed,
+              draw,
+              4,
+            )[0],
+          )
+          const other = db.questions(
+            config,
+            false,
+            previous,
+            seed + 37,
+            draw,
+            4,
+          )[0]
+          assert.equal(q.structureKey, other.structureKey)
+          assert.equal(q.patternKey, other.patternKey)
+          for (const step of [q.stem, p.ask, ...p.steps]) {
+            const parts = step.split('$')
+            assert.equal(parts.length % 2, 1)
+            for (let i = 1; i < parts.length; i += 2)
+              katex.renderToString(parts[i], {
+                throwOnError: true,
+                strict: 'error',
+              })
+          }
+          const retry = db.questions(
+            config,
+            false,
+            [...previous, q.structureKey],
+            seed,
+            draw,
+            4,
+          )[0]
+          assert.notEqual(q.structureKey, retry.structureKey)
+        }
       }
-      assert.throws(
-        () => db.questions(config, false, history, 123),
-        (e) => e.details.reason === 'exhausted',
-      )
+      const q = db.questions(
+        config,
+        false,
+        previous,
+        123,
+        Number.MAX_SAFE_INTEGER,
+        329,
+      )[0]
+      assert.ok(q.composed && Number.isFinite(q.parts[0].value))
     }
-    assert.throws(
-      () => db.questions({ paper: 1, difficulty: level }, false, history, 123),
-      (e) => e.details.reason === 'exhausted',
+  const all = db.questions(
+    { paper: 1, difficulty: 'Medio' },
+    false,
+    structures.map((e) => e.key),
+    123,
+    300000,
+    87,
+  )
+  assert.equal(all[0].composed, true)
+  assert.equal(
+    db.questions(
+      { paper: 1, theme: '', difficulty: 'Medio' },
+      false,
+      structures.map((e) => e.key),
+      123,
+      300000,
+      87,
+    )[0].id,
+    all[0].id,
+  )
+})
+test('enumeración de condiciones sin permutaciones ni filas homogéneas', () => {
+  const seen = new Set()
+  for (let i = 0n; i < 5000n; i++) {
+    const shape = inputKinds(i, 8)
+    assert.ok(shape[0] < shape.at(-1))
+    assert.deepEqual(
+      [...shape].sort((a, b) => a - b),
+      shape,
     )
+    const key = shape.join(',')
+    assert.ok(!seen.has(key))
+    seen.add(key)
   }
 })
 test(

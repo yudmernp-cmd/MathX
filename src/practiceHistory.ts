@@ -36,7 +36,13 @@ function nextTicket(db: IDBDatabase): Promise<Ticket> {
       store.put({ next: draw + 1, offset }, 'serie')
     }
     tx.oncomplete = () =>
-      resolve({ recent: previous.result ?? [], draw, offset })
+      resolve({
+        recent: ((previous.result ?? []) as string[]).filter(
+          (k) => !k.startsWith('serie-'),
+        ),
+        draw,
+        offset,
+      })
     tx.onabort = () => reject(new HistoryError())
   })
 }
@@ -72,6 +78,12 @@ function reserve(
           : [q.id!, ...(q.historyKey ? [q.historyKey] : [])],
       content: q.wordingKey ?? (q.generated ? q.historyKey : undefined),
     }))
+    // Keep the open-ended series on disk, one indexed key per fingerprint.
+    // Only the finite catalogue goes in the request body. Transactions serialize
+    // both kinds of reservations across tabs and across catalogue upgrades.
+    const structures = items.map((item, i) =>
+      questions[i].composed ? item.fixed.map((k) => store.getKey(k)) : [],
+    )
     const reads = items.map((i) => (i.content ? store.getKey(i.content) : null))
     const barrier = store.getKey('serie')
     const conflicts: string[] = []
@@ -86,6 +98,7 @@ function reserve(
           const key = i.content ?? i.id
           if (
             reads[j]?.result !== undefined ||
+            structures[j].some((read) => read.result !== undefined) ||
             i.fixed.some((k) => seen.has(k) || batch.has(k)) ||
             batch.has(key)
           )
@@ -97,7 +110,8 @@ function reserve(
       legacy.forEach((k) => seen.add(k))
       if (!conflicts.length) {
         items.forEach((i, j) => {
-          i.fixed.forEach((k) => seen.add(k))
+          if (questions[j].composed) i.fixed.forEach((k) => store.put(true, k))
+          else i.fixed.forEach((k) => seen.add(k))
           if (i.content && reads[j]?.result === undefined)
             store.put(
               {

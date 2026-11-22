@@ -1,3 +1,4 @@
+import { compose } from './composition/index.mjs'
 import { algebra } from './algebra.mjs'
 import { functions } from './functions.mjs'
 import { geometry } from './geometry.mjs'
@@ -37,6 +38,7 @@ export function materialize(entry, a, b) {
     generated: true,
     scheme: 'revisado',
     structureKey: entry.key,
+    ...(entry.composed && { composed: true }),
     variant: 0,
     parts: [
       {
@@ -52,7 +54,10 @@ export function materialize(entry, a, b) {
   }
   const content = wordingKey(q)
   // Also catch a future duplicate template whose semantic annotation was mistyped.
-  const template = [stem, ask].map((text) =>
+  const textFields = [stem, ask]
+  if (entry.composed)
+    textFields.push(...figure.rows.flatMap((row) => row.map(String)))
+  const template = textFields.map((text) =>
     text
       .normalize('NFKC')
       .toLowerCase()
@@ -61,7 +66,8 @@ export function materialize(entry, a, b) {
       .trim(),
   )
   const patternKey =
-    'patron-' + digest([...template, figure?.type, figure?.headers])
+    (entry.composed ? 'serie-patron-' : 'patron-') +
+    digest([...template, figure?.type, figure?.headers])
   return {
     ...q,
     id: 'i-' + content.slice(6),
@@ -71,7 +77,7 @@ export function materialize(entry, a, b) {
   }
 }
 
-export function individual(config, seen, rng) {
+export function individual(config, seen, rng, draw, offset) {
   const matching = structures.filter(
     (e) =>
       e.level === config.difficulty &&
@@ -81,23 +87,34 @@ export function individual(config, seen, rng) {
     matching.filter((e) => !seen.has(e.key)),
     rng,
   )
-  let failedVerification = false
   for (const e of fresh) {
     const q = materialize(
       e,
       3 + Math.floor(rng() * 7),
       12 + Math.floor(rng() * 15),
     )
-    if (!q) failedVerification = true
-    else if (!seen.has(q.wordingKey) && !seen.has(q.patternKey)) return q
+    if (q && !seen.has(q.wordingKey) && !seen.has(q.patternKey)) return q
   }
-  if (failedVerification)
-    throw new Unavailable(
-      'No se pudo verificar una pregunta para esta selección. Vuelve a intentarlo.',
-      { reason: 'verification' },
+  const theme = config.theme || themes[Math.floor(rng() * themes.length)]
+  // Old clients may explicitly send a composed shape as seen. Skip ahead
+  // without discarding any history. Normally the browser already owns a unique ticket.
+  let invalid = 0
+  for (let rank = BigInt(draw); invalid < 12; rank++) {
+    const recipe = compose(theme, config.difficulty, rank, offset, rng)
+    const q = recipe && materialize(recipe)
+    if (!q) {
+      invalid++
+      continue
+    }
+    if (
+      !seen.has(q.structureKey) &&
+      !seen.has(q.wordingKey) &&
+      !seen.has(q.patternKey)
     )
+      return q
+  }
   throw new Unavailable(
-    'Has agotado los ejercicios diferentes disponibles para este tema y dificultad. Puedes elegir otro tema u otra dificultad.',
-    { reason: 'exhausted' },
+    'No se pudo verificar una pregunta. Vuelve a intentarlo.',
+    { reason: 'verification' },
   )
 }
