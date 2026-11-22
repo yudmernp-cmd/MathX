@@ -11,43 +11,24 @@ import { restore, storageKey, type Run, type Mode } from './math/session'
 import type { Config } from './math/model'
 import { withHistory, HistoryError } from './practiceHistory'
 
-class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message)
-  }
-}
-async function request<T>(action: string, data?: unknown): Promise<T> {
-  const res = await fetch('/api/classroom?action=' + action, {
-    method: data === undefined ? 'GET' : 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    ...(data === undefined
-      ? {}
-      : {
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }),
-  })
-  const body = await res.json()
-  if (!res.ok)
-    throw new ApiError(
-      body.error || 'No se pudo consultar el aula.',
-      res.status,
-    )
-  return body
-}
+import { ApiError, request } from './request'
+import { Boards } from './Boards'
 function clearSession() {
   try {
     for (const k of [storageKey, 'mathx.session.1'])
       sessionStorage.removeItem(k)
   } catch {}
 }
-function Classroom({ onExpired }: { onExpired: () => void }) {
+function Classroom({
+  onExpired,
+  owner,
+}: {
+  onExpired: () => void
+  owner: string
+}) {
   const [run, setRun] = useState<Run | null>(() => {
     const stored = restore()
+    if (stored?.owner !== owner) return null
     return stored?.mode === 'Ejercicios' && !stored.questions[0]?.drill
       ? null
       : stored
@@ -84,8 +65,8 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
   }, [report])
   useEffect(loadCatalog, [loadCatalog])
   useEffect(() => {
-    withHistory().catch(report)
-  }, [report])
+    withHistory(undefined, undefined, owner).catch(report)
+  }, [report, owner])
   useEffect(() => {
     if (!run) return
     try {
@@ -127,9 +108,10 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
         mode === 'Ejercicios'
           ? 'drills:' + config.theme + ':' + config.drillLevel
           : 'serie',
+        owner,
       )
       if (!next) return
-      setRun(next)
+      setRun({ ...next, owner })
       window.scrollTo(0, 0)
     } catch (e) {
       report(e)
@@ -139,6 +121,31 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
       setLoading(false)
     }
   }
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    if (!run?.finished || !run.ticket || run.sent) return
+    let live = true
+    request<{ counted: boolean; questions: Run['questions'] }>('submit', {
+      ticket: run.ticket,
+      answers: run.answers,
+    })
+      .then((result) => {
+        if (live) {
+          setError('')
+          change({
+            sent: true,
+            counted: result.counted,
+            questions: result.questions,
+          })
+        }
+      })
+      .catch((e) => {
+        if (live) report(e)
+      })
+    return () => {
+      live = false
+    }
+  }, [run?.finished, run?.ticket, run?.sent, retry, change, report])
   function home() {
     setRun(null)
     try {
@@ -150,7 +157,15 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
     <>
       {error && (
         <p role="alert" className="error">
-          {error}
+          {error}{' '}
+          {run?.finished && run.ticket && !run.sent && (
+            <button
+              className="secondary"
+              onClick={() => setRetry((n) => n + 1)}
+            >
+              Reintentar entrega
+            </button>
+          )}
         </p>
       )}
       {storageFailed && (
@@ -206,7 +221,14 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
     </>
   )
 }
+type Identity = { expires: number; id?: string; admin?: boolean }
 function App() {
+  const [identity, setIdentity] = useState<Identity>({ expires: 0 }),
+    [adminForm, setAdminForm] = useState(false),
+    [ranking, setRanking] = useState(false)
+  const [name, setName] = useState(''),
+    [dni, setDni] = useState('')
+
   const [unavailable, setUnavailable] = useState(false)
   const [expires, setExpires] = useState<number | null>(null),
     [password, setPassword] = useState('')
@@ -214,15 +236,21 @@ function App() {
     [busy, setBusy] = useState(false)
   const expire = useCallback(() => {
     clearSession()
+    setIdentity({ expires: 0 })
+    setRanking(false)
+    setName('')
+    setDni('')
     setExpires(0)
     setPassword('')
   }, [])
   const check = useCallback(async () => {
     try {
-      const s = await request<{ expires: number }>('status')
+      const s = await request<Identity>('status')
       setUnavailable(false)
-      if (s.expires > Date.now()) setExpires(s.expires)
-      else expire()
+      if (s.expires > Date.now()) {
+        setIdentity(s)
+        setExpires(s.expires)
+      } else expire()
       setError('')
     } catch (e) {
       setUnavailable(true)
@@ -257,7 +285,13 @@ function App() {
         await request('logout', {})
         expire()
       } else {
-        const s = await request<{ expires: number }>('login', { password })
+        const s = await request<Identity>(
+          'login',
+          adminForm ? { admin: true, password } : { name, dni, code: password },
+        )
+        setIdentity(s)
+        setName('')
+        setDni('')
         setPassword('')
         setExpires(s.expires)
       }
@@ -299,7 +333,37 @@ function App() {
         {expires === null ? (
           <p role="status">Comprobando acceso…</p>
         ) : expires ? (
-          <Classroom onExpired={expire} />
+          identity.admin ? (
+            <Boards admin />
+          ) : (
+            <>
+              <nav className="actions">
+                <button
+                  className="secondary"
+                  aria-pressed={!ranking}
+                  onClick={() => setRanking(false)}
+                >
+                  Práctica
+                </button>
+                <button
+                  className="secondary"
+                  aria-pressed={ranking}
+                  onClick={() => setRanking(true)}
+                >
+                  Clasificaciones
+                </button>
+              </nav>
+              {ranking ? (
+                <Boards admin={false} />
+              ) : (
+                <Classroom
+                  key={identity.id}
+                  owner={identity.id!}
+                  onExpired={expire}
+                />
+              )}
+            </>
+          )
         ) : unavailable ? (
           <section className="panel login">
             <h1>Acceso al aula</h1>
@@ -315,10 +379,38 @@ function App() {
               auth(false)
             }}
           >
-            <h1>Acceso al aula</h1>
-            <label htmlFor="class-key">Clave compartida de la clase</label>
+            <h1>{adminForm ? 'Administración' : 'Acceso al aula'}</h1>
+            {!adminForm && (
+              <>
+                <label htmlFor="name">Nombre</label>
+                <input
+                  id="name"
+                  autoComplete="name"
+                  required
+                  maxLength={80}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <label htmlFor="dni">DNI</label>
+                <input
+                  id="dni"
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]{8}"
+                  maxLength={8}
+                  value={dni}
+                  onChange={(e) => setDni(e.target.value)}
+                />
+              </>
+            )}
+            <label htmlFor="class-key">
+              {adminForm ? 'Clave de administración' : 'Código personal'}
+            </label>
             <input
               id="class-key"
+              pattern={adminForm ? undefined : '[0-9]{6}'}
+              maxLength={adminForm ? 256 : 6}
+              inputMode={adminForm ? undefined : 'numeric'}
               type="password"
               value={password}
               autoComplete="current-password"
@@ -327,6 +419,17 @@ function App() {
             />
             <button className="primary" disabled={busy}>
               Entrar al aula
+            </button>
+            <button
+              type="button"
+              className="back"
+              onClick={() => {
+                setAdminForm(!adminForm)
+                setPassword('')
+                setError('')
+              }}
+            >
+              {adminForm ? 'Acceso de estudiantes' : 'Administración'}
             </button>
           </form>
         )}

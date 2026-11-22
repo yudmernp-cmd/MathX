@@ -1,3 +1,4 @@
+import { request } from './request'
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { MathText } from './Figures'
@@ -17,6 +18,8 @@ export function DrillWorkspace({
   home: () => void
   busy: boolean
 }) {
+  const [saving, setSaving] = useState(false),
+    [error, setError] = useState('')
   const [solution, setSolution] = useState(false)
   const i = run.index,
     q = run.questions[i].drill!,
@@ -61,9 +64,20 @@ export function DrillWorkspace({
           <MathText text={expr} />
         </p>
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault()
-            change({ drillChecked: { ...run.drillChecked, [id]: true } })
+            if (saving) return
+            setSaving(true)
+            setError('')
+            try {
+              const { signature, ...drill } = q
+              await request('submit', { signature, drill, answer })
+              change({ drillChecked: { ...run.drillChecked, [id]: true } })
+            } catch (e) {
+              setError((e as Error).message)
+            } finally {
+              setSaving(false)
+            }
           }}
         >
           <input
@@ -78,6 +92,7 @@ export function DrillWorkspace({
               })
             }
           />
+          {error && <p role="alert">{error}</p>}
           {checked && (
             <p role="status" className="feedback">
               {acceptsDrill(q, answer)
@@ -86,7 +101,7 @@ export function DrillWorkspace({
             </p>
           )}
           <div className="actions">
-            <button className="primary" disabled={!answer.trim()}>
+            <button className="primary" disabled={saving || !answer.trim()}>
               <Check size={16} /> Comprobar respuesta
             </button>
             <button
@@ -115,13 +130,17 @@ export function DrillWorkspace({
         <div className="actions">
           <button
             className="secondary"
-            disabled={i === 0}
+            disabled={saving || i === 0}
             onClick={() => jump(i - 1)}
           >
             Anterior
           </button>
           {i + 1 < run.questions.length ? (
-            <button className="secondary" onClick={() => jump(i + 1)}>
+            <button
+              className="secondary"
+              disabled={saving}
+              onClick={() => jump(i + 1)}
+            >
               Siguiente ejercicio <ArrowRight size={16} />
             </button>
           ) : (

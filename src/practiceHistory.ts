@@ -7,9 +7,12 @@ export class HistoryError extends Error {
     super(message)
   }
 }
-function openHistory(): Promise<IDBDatabase> {
+function openHistory(owner?: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const open = indexedDB.open('mathx.mai.historial', 1)
+    const open = indexedDB.open(
+      'mathx.mai.historial' + (owner ? '.' + owner : ''),
+      1,
+    )
     open.onupgradeneeded = () => open.result.createObjectStore('historial')
     open.onsuccess = () => resolve(open.result)
     open.onerror = () => reject(new HistoryError())
@@ -132,13 +135,20 @@ function reserve(
 export async function withHistory(
   select?: (ticket: Ticket) => Promise<Run>,
   series = 'serie',
+  owner?: string,
 ) {
-  const db = await openHistory()
+  const db = await openHistory(owner)
   try {
     const legacy = JSON.parse(sessionStorage.getItem('mathx.recientes') ?? '[]')
     if (!Array.isArray(legacy) || !legacy.every((id) => typeof id === 'string'))
       throw new HistoryError()
-    await reserve(db, restore(), legacy, false)
+    const previous = restore()
+    await reserve(
+      db,
+      previous?.owner === owner ? previous : null,
+      legacy,
+      false,
+    )
     sessionStorage.removeItem('mathx.recientes')
     if (!select) return
     const collisions = new Set<string>()

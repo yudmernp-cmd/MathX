@@ -24,6 +24,14 @@ buildSync({
   bundle: true,
   target: 'node24',
 })
+buildSync({
+  entryPoints: ['server/league-grading.ts'],
+  outfile: path.join(directory, 'league-grading.cjs'),
+  platform: 'node',
+  format: 'cjs',
+  bundle: true,
+  target: 'node24',
+})
 const dest = path.join(directory, 'bank.sqlite'),
   temp = dest + '.' + randomUUID()
 const restored = temp + '.approved'

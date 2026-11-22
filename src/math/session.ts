@@ -3,6 +3,10 @@ import { partMarks } from './model'
 import { correct } from './grading'
 export type Mode = 'Ejercicios' | 'Simulacros'
 export type Run = {
+  owner?: string
+  ticket?: string | null
+  counted?: boolean
+  sent?: boolean
   config: Config
   mode: Mode
   seed: number

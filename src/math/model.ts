@@ -25,6 +25,7 @@ export type Config = {
   subtopic?: string
 }
 export type Part = {
+  numeric?: boolean
   ask: string
   value: number | null
   steps: string[]

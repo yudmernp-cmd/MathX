@@ -6,7 +6,8 @@ const systemBrowser =
   (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined)
 const publicURL = process.env.MATHX_TEST_URL
 if (!publicURL) {
-  process.env.MATHX_CLASS_PASSWORD ||= randomBytes(18).toString('hex')
+  process.env.MATHX_ADMIN_PASSWORD ||= randomBytes(24).toString('hex')
+  process.env.MATHX_LEAGUE_DB ||= ':memory:'
   process.env.MATHX_SESSION_SECRET ||= randomBytes(32).toString('hex')
 }
 export default defineConfig({

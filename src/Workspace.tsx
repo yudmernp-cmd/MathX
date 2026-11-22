@@ -50,6 +50,8 @@ export function Workspace({ run, change, home, another }: Props) {
     setSolution(false)
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
+  if (run.ticket && run.finished && !run.sent)
+    return <p role="status">Entrega del simulacro pendiente de confirmación.</p>
   const showSolutions = run.finished || solution
   return (
     <div className="workspace">
@@ -112,6 +114,13 @@ export function Workspace({ run, change, home, another }: Props) {
               {scores.withoutScheme > 0 &&
                 `${scores.withoutScheme} puntos sin esquema de calificación.`}
             </p>
+            {run.ticket && run.sent && (
+              <p>
+                {run.counted
+                  ? 'Resultado registrado en la convocatoria.'
+                  : 'La convocatoria o el plazo de entrega ha terminado.'}
+              </p>
+            )}
             <small>
               La comprobación automática valora el resultado numérico. Revisa el
               procedimiento escrito con el baremo. Puntuación de práctica.
@@ -198,7 +207,7 @@ export function Workspace({ run, change, home, another }: Props) {
                     />
                   ))}
                 {p.figure && <DataFigure data={p.figure} />}
-                {partMarks(p) === 0 ? null : p.value === null ? (
+                {partMarks(p) === 0 ? null : p.value === null && !p.numeric ? (
                   <textarea
                     id={'answer' + id}
                     value={val}

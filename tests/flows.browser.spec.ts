@@ -9,11 +9,49 @@ const saved = (page: Page) =>
   )
 const button = (p: Page, name: string) =>
   p.getByRole('button', { name, exact: true })
+const profiles = new WeakMap<
+  Page,
+  { name: string; dni: string; code: string }
+>()
 async function login(page: Page) {
   await page.goto('/')
-  await page
-    .getByLabel('Clave compartida de la clase')
-    .fill(process.env.MATHX_CLASS_PASSWORD!)
+  await expect(page.getByLabel('Código personal')).toBeVisible()
+  let profile = profiles.get(page)
+  if (!profile) {
+    if (process.env.MATHX_TEST_URL) {
+      profile = {
+        name: process.env.MATHX_TEST_NAME!,
+        dni: process.env.MATHX_TEST_DNI!,
+        code: process.env.MATHX_TEST_CODE!,
+      }
+    } else {
+      const origin = new URL(page.url()).origin
+      const api = (action: string, data: object) =>
+        page.request.post('/api/classroom?action=' + action, {
+          headers: { Origin: origin },
+          data,
+        })
+      expect(
+        (
+          await api('login', {
+            admin: true,
+            password: process.env.MATHX_ADMIN_PASSWORD,
+          })
+        ).ok(),
+      ).toBeTruthy()
+      const dni = String(10000000 + Math.floor(Math.random() * 90000000)),
+        name = 'Estudiante de prueba'
+      const r = await api('enroll', { dni, name })
+      expect(r.ok()).toBeTruthy()
+      profile = { dni, name, code: (await r.json()).code }
+      await api('logout', {})
+      await page.reload()
+    }
+    profiles.set(page, profile)
+  }
+  await page.getByLabel('Nombre', { exact: true }).fill(profile.name)
+  await page.getByLabel('DNI', { exact: true }).fill(profile.dni)
+  await page.getByLabel('Código personal').fill(profile.code)
   await button(page, 'Entrar al aula').click()
   await expect(
     page.getByRole('heading', { name: 'Configura tu práctica' }),
@@ -115,7 +153,7 @@ test('dos pestañas y una sesión nueva evitan repetir enunciados', async ({
   expect(new Set(previous.map((q) => q.wordingKey)).size).toBe(30)
   await tab.close()
   await button(page, 'Salir del aula').click()
-  await expect(page.getByLabel('Clave compartida de la clase')).toBeVisible()
+  await expect(page.getByLabel('Código personal')).toBeVisible()
   await login(page)
   await button(page, 'Empezar práctica').click()
   await expect(
@@ -190,12 +228,90 @@ for (const paper of [1, 2]) {
 }
 test('una clave incorrecta conserva cerrado el catálogo', async ({ page }) => {
   await page.goto('/')
-  await page
-    .getByLabel('Clave compartida de la clase')
-    .fill('clave incorrecta de prueba')
+  await page.getByLabel('Nombre', { exact: true }).fill('Prueba')
+  await page.getByLabel('DNI', { exact: true }).fill('00000000')
+  await page.getByLabel('Código personal').fill('000000')
   await button(page, 'Entrar al aula').click()
   await expect(page.getByRole('alert')).toContainText('incorrecta')
   expect(
     (await page.request.get('/api/classroom?action=catalog')).status(),
   ).toBe(401)
+})
+
+test('el administrador inscribe y abre una convocatoria visible para la clase', async ({
+  page,
+  browser,
+}, info) => {
+  test.skip(
+    !!process.env.MATHX_TEST_URL || info.project.name === 'mobile',
+    'Usa exclusivamente el aula local de pruebas.',
+  )
+  await page.goto('/')
+  await button(page, 'Administración').click()
+  await page
+    .getByLabel('Clave de administración')
+    .fill(process.env.MATHX_ADMIN_PASSWORD!)
+  await button(page, 'Entrar al aula').click()
+  const dni = String(10000000 + Math.floor(Math.random() * 90000000))
+  await page.getByLabel('Nombre', { exact: true }).fill('Estudiante del top')
+  await page.getByLabel('DNI', { exact: true }).fill(dni)
+  await button(page, 'Crear código personal').click()
+  const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
+  await button(page, 'Activar top de simulacros').click()
+  await expect(
+    page.getByRole('heading', { name: 'Top de simulacros' }),
+  ).toBeVisible()
+  const ctx = await browser.newContext({ baseURL: new URL(page.url()).origin }),
+    student = await ctx.newPage()
+  try {
+    await student.goto('/')
+    await student
+      .getByLabel('Nombre', { exact: true })
+      .fill('Estudiante del top')
+    await student.getByLabel('DNI', { exact: true }).fill(dni)
+    await student.getByLabel('Código personal').fill(code)
+    await button(student, 'Entrar al aula').click()
+    await button(student, 'Clasificaciones').click()
+    await expect(
+      student.getByRole('heading', { name: 'Top de simulacros' }),
+    ).toBeVisible()
+    const r = await student.request.post('/api/classroom?action=toggle', {
+      headers: { Origin: new URL(page.url()).origin },
+      data: { active: false },
+    })
+    expect(r.status()).toBe(403)
+    if (existsSync('server-data/approved.sqlite')) {
+      await button(student, 'Práctica').click()
+      await button(student, 'Simulacros').click()
+      await button(student, 'Empezar simulacro').click()
+      await expect(student.locator('.timer')).toBeVisible()
+      expect(
+        (await saved(student)).questions.every((q) =>
+          q.parts.every((p) => p.value === null && !p.steps.length),
+        ),
+      ).toBe(true)
+      await student
+        .getByRole('button', { name: 'Finalizar simulacro', exact: true })
+        .first()
+        .click()
+      await button(student, 'Confirmar finalización').click()
+      await expect(student.locator('.result')).toContainText(
+        'Resultado registrado',
+      )
+      await expect(student.locator('.solution').first()).toBeVisible()
+      await button(student, 'Clasificaciones').click()
+      await expect(student.locator('.ranking').last()).toContainText(
+        'Estudiante del top',
+      )
+    }
+    page.once('dialog', (d) => d.accept())
+    await button(page, 'Cerrar convocatoria').click()
+    await expect(button(page, 'Activar top de simulacros')).toBeVisible()
+    await button(student, 'Actualizar clasificaciones').click()
+    await expect(
+      student.getByRole('heading', { name: 'Top de simulacros' }),
+    ).toHaveCount(0)
+  } finally {
+    await ctx.close()
+  }
 })
