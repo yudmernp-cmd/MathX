@@ -159,7 +159,7 @@ export function hybrid(
   rows,
   paper,
   rng = Math.random,
-  size = paper === 1 ? 12 : 5,
+  size = paper === 1 ? 12 : 6,
 ) {
   const pools = {}
   for (const o of ['real', 'original']) {
@@ -198,38 +198,4 @@ export function hybrid(
     'No se encontró una combinación de 80 puntos que cumpla la mezcla, los cinco temas y las dificultades. Se requiere revisión del banco.',
     details,
   )
-}
-export function practice(
-  rows,
-  config,
-  rng = Math.random,
-  lastFamily = new Map(),
-  previousOrigin,
-) {
-  const pool = rows.filter(
-    (q) =>
-      q.paper === config.paper &&
-      q.level === config.difficulty &&
-      (!config.theme || q.theme === config.theme) &&
-      (!config.subtopic || q.topic === config.subtopic),
-  )
-  if (!pool.length)
-    throw new Unavailable(
-      'No quedan ejercicios inéditos para esta selección. Prueba otro subtema o dificultad.',
-      {
-        paper: config.paper,
-      },
-    )
-  // A large generated reserve must not bury the small reviewed collection.
-  const preferred = previousOrigin === 'real' ? 'original' : 'real'
-  const preferredPool = pool.filter((q) => q.origin === preferred)
-  const choices = shuffled(
-    preferredPool.length ? preferredPool : pool,
-    rng,
-  ).sort(
-    (a, b) =>
-      (lastFamily.get(a.similarity) ?? -1) -
-      (lastFamily.get(b.similarity) ?? -1),
-  )
-  return choices[0].id
 }

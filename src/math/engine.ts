@@ -12,6 +12,7 @@ import { analysisFamilies } from './analysis'
 import { shared } from './shared'
 import { regression, binomial, independence, normal } from './technology'
 import {
+  levels,
   random,
   type Config,
   type Family,
@@ -103,16 +104,32 @@ export function exercise(c: Config, seed: number) {
     for (const variant of [v, 1 - v]) {
       const q = problem(f, variant, level, r, c)
       if (!q) continue
-      const short = c.paper === 1
-      const length = short
-        ? level === 'Fácil'
-          ? 2
-          : 3
-        : level === 'Fácil'
-          ? 4
-          : 5
-      return { ...q, parts: q.parts.slice(0, length) }
+      return forPaper(q, c.paper, level)
     }
   }
   throw Error('No hay un ejercicio verificado para esta selección.')
+}
+
+function forPaper(q: Problem, paper: Config['paper'], level: Level) {
+  const short = paper === 1
+  const length = short ? (level === 'Fácil' ? 2 : 3) : level === 'Fácil' ? 4 : 5
+  return { ...q, parts: q.parts.slice(0, length) }
+}
+
+// Materialize both structures at each level. The exam planner uses their actual
+// mark schemes and only receives instances which passed the independent oracle.
+export function examOriginals(paper: Config['paper'], seed: number) {
+  const r = random(seed)
+  const out: Problem[] = []
+  for (const f of families)
+    for (const level of levels)
+      for (const v of [0, 1]) {
+        const q = problem(f, v, level, r, {
+          course: 'MAI',
+          paper,
+          difficulty: level,
+        })
+        if (q) out.push(forPaper(q, paper, level))
+      }
+  return out
 }

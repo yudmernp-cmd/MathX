@@ -43,7 +43,12 @@ function clearSession() {
   } catch {}
 }
 function Classroom({ onExpired }: { onExpired: () => void }) {
-  const [run, setRun] = useState<Run | null>(restore)
+  const [run, setRun] = useState<Run | null>(() => {
+    const stored = restore()
+    return stored?.mode === 'Ejercicios' && !stored.questions[0]?.individual
+      ? null
+      : stored
+  })
   const [config, setConfig] = useState<Config>(
     run?.config || { course: 'MAI', paper: 1, difficulty: 'Medio' },
   )
@@ -101,7 +106,10 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
     try {
       const next = await withHistory((ticket) =>
         request<Run>(mode === 'Ejercicios' ? 'practice' : 'exam', {
-          ...config,
+          course: config.course,
+          paper: config.paper,
+          difficulty: config.difficulty,
+          theme: config.theme,
           ...ticket,
         }),
       )
@@ -146,14 +154,16 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
       ) : catalog.length ? (
         <Setup
           config={config}
-          setConfig={setConfig}
+          setConfig={(c) => {
+            setConfig(c)
+            setError('')
+          }}
           mode={mode}
           setMode={(m) => {
             setMode(m)
             setError('')
           }}
           begin={begin}
-          catalog={catalog}
           busy={loading}
         />
       ) : (

@@ -1,3 +1,4 @@
+import { buildSync } from 'esbuild'
 import { DatabaseSync } from 'node:sqlite'
 import { createHash, randomUUID } from 'node:crypto'
 import {
@@ -15,6 +16,14 @@ import { levels, points } from '../src/math/model'
 
 const directory = path.resolve(process.env.MATHX_DATA_DIR || 'server-data')
 mkdirSync(directory, { recursive: true })
+buildSync({
+  entryPoints: ['src/math/engine.ts'],
+  outfile: path.join(directory, 'exam-originals.cjs'),
+  platform: 'node',
+  format: 'cjs',
+  bundle: true,
+  target: 'node24',
+})
 const dest = path.join(directory, 'bank.sqlite'),
   temp = dest + '.' + randomUUID()
 const restored = temp + '.approved'

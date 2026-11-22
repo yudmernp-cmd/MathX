@@ -131,7 +131,6 @@ export default async function handler(req, res) {
         paper,
         difficulty,
         theme,
-        subtopic,
         recent = [],
         draw,
         offset,
@@ -145,9 +144,7 @@ export default async function handler(req, res) {
         recent.length > 15000 ||
         !recent.every((s) => typeof s === 'string' && s.length < 160) ||
         (action === 'practice' &&
-          (!levels.includes(difficulty) ||
-            (theme && !themes.includes(theme)) ||
-            (subtopic && typeof subtopic !== 'string')))
+          (!levels.includes(difficulty) || (theme && !themes.includes(theme))))
       )
         return send(400, { error: 'Configuración de práctica inválida.' })
       const sim = action === 'exam',
@@ -155,7 +152,7 @@ export default async function handler(req, res) {
           course: 'MAI',
           paper,
           difficulty: sim ? 'Medio' : difficulty,
-          ...(!sim && { theme, subtopic }),
+          ...(!sim && { theme }),
         }
       const seed = randomInt(2 ** 32)
       const questions = bank().questions(

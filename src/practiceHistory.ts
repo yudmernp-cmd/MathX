@@ -1,10 +1,10 @@
 import { restore, type Run } from './math/session'
 
 export class HistoryError extends Error {
-  constructor() {
-    super(
-      'No se pudo guardar el historial de ejercicios. Comprueba que el navegador permite almacenar datos de MathX.',
-    )
+  constructor(
+    message = 'No se pudo guardar el historial de ejercicios. Comprueba que el navegador permite almacenar datos de MathX.',
+  ) {
+    super(message)
   }
 }
 function openHistory(): Promise<IDBDatabase> {
@@ -21,7 +21,9 @@ type Ticket = { recent: string[]; draw: number; offset: number }
 // number; two tabs (including across reloads) can never take the same ticket.
 function nextTicket(db: IDBDatabase): Promise<Ticket> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction('historial', 'readwrite'),
+    const tx = db.transaction('historial', 'readwrite', {
+        durability: 'strict',
+      }),
       store = tx.objectStore('historial')
     const previous = store.get('vistos'),
       counter = store.get('serie')
@@ -43,43 +45,73 @@ function reserve(
   run: Run | null,
   legacy: string[],
   exclusive: boolean,
-): Promise<boolean> {
+): Promise<string[]> {
   const questions = run?.questions ?? []
-  if (questions.some((q) => !q.id || (q.generated && !q.historyKey)))
+  if (
+    questions.some(
+      (q) =>
+        !q.id ||
+        (q.generated && !q.historyKey) ||
+        (q.individual && (!q.structureKey || !q.wordingKey)),
+    )
+  )
     return Promise.reject(new HistoryError())
   return new Promise((resolve, reject) => {
-    const tx = db.transaction('historial', 'readwrite'),
+    const tx = db.transaction('historial', 'readwrite', {
+        durability: 'strict',
+      }),
       store = tx.objectStore('historial')
     const previous = store.get('vistos')
+    const student = store.get('estudiante')
     const items = questions.map((q) => ({
-      // Only finite bank identifiers are sent back to the API. Content hashes live
-      // as individual IndexedDB keys, including for on-demand variants.
-      fixed: q.generated
-        ? []
-        : [q.id!, ...(q.historyKey ? [q.historyKey] : [])],
+      id: q.id!,
+      fixed: q.structureKey
+        ? [q.structureKey, ...(q.patternKey ? [q.patternKey] : [])]
+        : q.generated
+          ? []
+          : [q.id!, ...(q.historyKey ? [q.historyKey] : [])],
       content: q.wordingKey ?? (q.generated ? q.historyKey : undefined),
     }))
     const reads = items.map((i) => (i.content ? store.getKey(i.content) : null))
     const barrier = store.getKey('serie')
-    let accepted = false
+    const conflicts: string[] = []
     barrier.onsuccess = () => {
-      const seen = new Set<string>(previous.result ?? []),
-        size = seen.size
-      const collision = items.map(
-        (i, j) =>
-          reads[j]?.result !== undefined || i.fixed.some((k) => seen.has(k)),
-      )
-      accepted = !exclusive || collision.every((v) => !v)
+      const profile = student.result ?? crypto.randomUUID()
+      if (!student.result) store.put(profile, 'estudiante')
+      const seen = new Set<string>(previous.result ?? [])
+      const size = seen.size
+      if (exclusive) {
+        const batch = new Set<string>()
+        items.forEach((i, j) => {
+          const key = i.content ?? i.id
+          if (
+            reads[j]?.result !== undefined ||
+            i.fixed.some((k) => seen.has(k) || batch.has(k)) ||
+            batch.has(key)
+          )
+            conflicts.push(key)
+          batch.add(key)
+          i.fixed.forEach((k) => batch.add(k))
+        })
+      }
       legacy.forEach((k) => seen.add(k))
-      items.forEach((i, j) => {
-        if (accepted || collision[j]) {
+      if (!conflicts.length) {
+        items.forEach((i, j) => {
           i.fixed.forEach((k) => seen.add(k))
-          if (i.content) store.put(true, i.content)
-        }
-      })
+          if (i.content && reads[j]?.result === undefined)
+            store.put(
+              {
+                student: profile,
+                id: i.id,
+                structureKey: questions[j].structureKey,
+              },
+              i.content,
+            )
+        })
+      }
       if (seen.size !== size) store.put([...seen], 'vistos')
     }
-    tx.oncomplete = () => resolve(accepted)
+    tx.oncomplete = () => resolve(conflicts)
     tx.onabort = () => reject(new HistoryError())
   })
 }
@@ -92,10 +124,20 @@ export async function withHistory(select?: (ticket: Ticket) => Promise<Run>) {
     await reserve(db, restore(), legacy, false)
     sessionStorage.removeItem('mathx.recientes')
     if (!select) return
-    for (;;) {
-      const run = await select(await nextTicket(db))
-      if (await reserve(db, run, [], true)) return run
+    const collisions = new Set<string>()
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const ticket = await nextTicket(db)
+      const run = await select({
+        ...ticket,
+        recent: [...ticket.recent, ...collisions],
+      })
+      const conflicts = await reserve(db, run, [], true)
+      if (!conflicts.length) return run
+      conflicts.forEach((key) => collisions.add(key))
     }
+    throw new HistoryError(
+      'No se ha encontrado una selección inédita. Tu historial se conserva. Vuelve a intentarlo.',
+    )
   } finally {
     db.close()
   }

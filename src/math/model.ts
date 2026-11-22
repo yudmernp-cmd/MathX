@@ -2,6 +2,11 @@ export type Course = 'MAI'
 export type Paper = 1 | 2
 export type Level = 'Fácil' | 'Medio' | 'Difícil'
 export const levels: Level[] = ['Fácil', 'Medio', 'Difícil']
+export const levelName: Record<Level, string> = {
+  Fácil: 'Básico',
+  Medio: 'Intermedio',
+  Difícil: 'Avanzado',
+}
 export type Difficulty = Level
 export const themes = [
   'Números y álgebra',
@@ -26,6 +31,7 @@ export type Part = {
   marks?: number
   label?: string
   figure?: Figure
+  unit?: string
   percentage?: boolean
 }
 export type Figure =
@@ -46,6 +52,9 @@ export type Problem = {
   id?: string
   historyKey?: string
   origin?: 'original' | 'real' | 'adapted'
+  individual?: boolean
+  structureKey?: string
+  patternKey?: string
   generated?: boolean
   wordingKey?: string
   scheme?: 'revisado' | 'sin esquema'

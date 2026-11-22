@@ -1,5 +1,4 @@
 import { bank } from '../server/bank.mjs'
-import { hybrid } from '../server/hybrid.mjs'
 const { index } = bank()
 const counts = new Map()
 for (const q of index) {
@@ -9,25 +8,16 @@ for (const q of index) {
 console.log(Object.fromEntries(counts))
 for (const paper of [1, 2]) {
   try {
+    const qs = bank().questions({ paper }, true, [], 123456)
     console.log(
       'Prueba',
       paper,
-      'composición disponible',
-      hybrid(index, paper).length,
+      qs.length,
+      'preguntas,',
+      qs.filter((q) => q.origin === 'adapted').length,
+      'variantes de examen.',
     )
   } catch (e) {
     console.log(e.message, e.details)
-    for (const n of paper === 1 ? [13, 14] : [6]) {
-      try {
-        const alternative = hybrid(index, paper, Math.random, n)
-        console.log(
-          'Propuesta para revisión',
-          n,
-          'preguntas, 80 puntos:',
-          alternative,
-        )
-        break
-      } catch {}
-    }
   }
 }

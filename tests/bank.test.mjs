@@ -5,14 +5,14 @@ import { mkdtempSync, rmSync, readFileSync, readdirSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { hybrid, practice, levels, themes } from '../server/hybrid.mjs'
+import { hybrid, levels, themes } from '../server/hybrid.mjs'
 import { bank } from '../server/bank.mjs'
 // Explicit test-only metadata, never used for student sessions.
 function fixture(paper) {
   const rows = []
   for (const origin of ['original', 'real'])
     for (let i = 0; i < 60; i++)
-      for (const marks of paper === 1 ? [4, 6, 8] : [14, 16, 18])
+      for (const marks of paper === 1 ? [4, 6, 8] : [10, 14, 16, 18])
         rows.push({
           id: origin + i + '-' + marks,
           origin,
@@ -36,7 +36,7 @@ for (const paper of [1, 2]) {
         const ids = hybrid(rows, paper),
           qs = ids.map((id) => byId.get(id)),
           real = qs.filter((q) => q.origin === 'real')
-        assert(Math.abs(real.length - (qs.length - real.length)) <= 1)
+        assert.equal(2 * real.length, qs.length)
         assert.equal(
           qs.reduce((z, q) => z + q.marks, 0),
           80,
@@ -58,7 +58,7 @@ for (const paper of [1, 2]) {
           rows.filter((q) => q.origin === 'original'),
           paper,
         ),
-      (e) => e.details.missingReal === (paper === 1 ? 6 : 2),
+      (e) => e.details.missingReal === (paper === 1 ? 6 : 3),
     )
     assert.throws(
       () =>
@@ -69,68 +69,7 @@ for (const paper of [1, 2]) {
       (e) => e.details.missingReal === 0,
     )
   })
-  test('práctica filtrada y rotación P' + paper, () => {
-    const rows = fixture(paper),
-      config = {
-        paper,
-        theme: themes[0],
-        subtopic: 'tema0',
-        difficulty: 'Difícil',
-      }
-    const id = practice(rows, config),
-      q = rows.find((q) => q.id === id)
-    assert.equal(q.theme, config.theme)
-    assert.equal(q.topic, config.subtopic)
-    assert.equal(q.level, config.difficulty)
-    assert.notEqual(
-      id,
-      practice(
-        rows.filter((r) => r.id !== id),
-        config,
-      ),
-    )
-  })
 }
-
-test('continúa incluso después de consumir todas las preguntas de la reserva', (t) => {
-  const directory = mkdtempSync(path.join(tmpdir(), 'mathx-history-'))
-  t.after(() => rmSync(directory, { recursive: true, force: true }))
-  const oldDir = process.env.MATHX_DATA_DIR
-  process.env.MATHX_DATA_DIR = directory
-  t.after(() => {
-    if (oldDir === undefined) delete process.env.MATHX_DATA_DIR
-    else process.env.MATHX_DATA_DIR = oldDir
-  })
-  execFileSync(process.execPath, ['--import', 'tsx', 'tools/prepare.ts', '2'])
-  const db = bank()
-  const consumed = db.index.map((q, i) => (i % 2 ? q.historyKey : q.id))
-  for (const { paper, theme, topic } of db.catalog)
-    for (const difficulty of levels) {
-      const config = { paper, theme, subtopic: topic, difficulty }
-      const seen = new Set()
-      for (let draw = 15000; draw < 15020; draw++) {
-        const [q] = db.questions(config, false, consumed, 7, draw, 9)
-        assert.equal(q.topic, topic)
-        assert.equal(q.level, difficulty)
-        assert(q.generated)
-        assert(!seen.has(q.historyKey))
-        seen.add(q.historyKey)
-      }
-    }
-})
-test('la reserva generada no oculta las preguntas oficiales en la práctica', () => {
-  const sample = fixture(1).filter((q) => q.level === 'Medio')
-  const config = { paper: 1, difficulty: 'Medio' }
-  const oneOfficial = sample.find((q) => q.origin === 'real')
-  const originals = sample.filter((q) => q.origin === 'original')
-  const pool = [...originals, oneOfficial]
-  assert.equal(practice(pool, config), oneOfficial.id)
-  assert.notEqual(
-    practice(pool, config, Math.random, new Map(), 'real'),
-    oneOfficial.id,
-  )
-  assert.equal(practice([originals[0]], config), originals[0].id)
-})
 
 test('restaura la edición privada en una compilación limpia y detecta una edición dañada', (t) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'mathx-edicion-'))

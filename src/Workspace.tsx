@@ -13,8 +13,8 @@ import {
 import { useEffect, useState } from 'react'
 import type { Run } from './math/session'
 import { key, score } from './math/session'
-import { partMarks, points } from './math/model'
-import { correct, readNumber } from './math/grading'
+import { levelName, partMarks, points } from './math/model'
+import { correct, answerNumber } from './math/grading'
 import { MathText, DataFigure } from './Figures'
 type Props = {
   run: Run
@@ -65,7 +65,7 @@ export function Workspace({ run, change, home, another }: Props) {
       <section className="work-head">
         <div>
           <div className="eyebrow mint">
-            {run.config.course} NM · PRUEBA {run.config.paper}
+            {run.config.course} NM{sim && ' · PRUEBA ' + run.config.paper}
           </div>
           <h1>
             {sim
@@ -75,11 +75,13 @@ export function Workspace({ run, change, home, another }: Props) {
               : 'Ejercicio individual'}
           </h1>
           <div className="work-meta">
-            <span>
-              <Calculator size={15} />
-              Calculadora gráfica requerida
-            </span>
-            {!sim && <span>{run.config.difficulty}</span>}
+            {sim && (
+              <span>
+                <Calculator size={15} />
+                Calculadora gráfica requerida
+              </span>
+            )}
+            {!sim && <span>{levelName[q.level]}</span>}
           </div>
         </div>
         {sim && !run.finished && (
@@ -92,7 +94,7 @@ export function Workspace({ run, change, home, another }: Props) {
           </div>
         )}
       </section>
-      {locked && (
+      {sim && locked && (
         <section className="result" aria-live="polite">
           <CheckCircle2 />
           <div>
@@ -129,7 +131,7 @@ export function Workspace({ run, change, home, another }: Props) {
                 : q.origin === 'adapted'
                   ? 'Variante de examen · datos modificados'
                   : 'Original de MathX'}{' '}
-              · {points(q)} puntos · {q.level}
+              {sim && ' · ' + points(q) + ' puntos · ' + levelName[q.level]}
             </span>
           </div>
           {q.theme && <p className="question-theme">{q.theme}</p>}
@@ -163,8 +165,9 @@ export function Workspace({ run, change, home, another }: Props) {
           {q.origin !== 'real' && (
             <p className="hint">
               Da resultados exactos o redondeados a tres cifras significativas.
-              Puedes usar fracciones y expresiones como √(2). Escribe el
-              procedimiento para revisar los puntos de método.
+              Puedes usar fracciones y expresiones como √(2).{' '}
+              {sim &&
+                'Escribe el procedimiento para revisar los puntos de método.'}
             </p>
           )}
           {q.parts.map((p, j) => {
@@ -178,11 +181,11 @@ export function Workspace({ run, change, home, another }: Props) {
             return (
               <div key={id} className="part">
                 <div className="prompt">
-                  <b>{p.label ?? '(' + letter + ')'}</b>
+                  {sim && <b>{p.label ?? '(' + letter + ')'}</b>}
                   <label className="preserve-lines" htmlFor={'answer' + id}>
                     <MathText text={p.ask} />
                   </label>
-                  {partMarks(p) > 0 && <small>{partMarks(p)} pt</small>}
+                  {sim && partMarks(p) > 0 && <small>{partMarks(p)} pt</small>}
                 </div>
                 {q.assets
                   ?.filter((a) => a.part === j)
@@ -213,27 +216,31 @@ export function Workspace({ run, change, home, another }: Props) {
                       placeholder="Tu respuesta"
                       autoComplete="off"
                     />
-                    <details key={id + 'work'}>
-                      <summary>Procedimiento</summary>
-                      <textarea
-                        aria-label={'Procedimiento ' + letter}
-                        value={note}
-                        readOnly={locked}
-                        onChange={(e) =>
-                          change({
-                            notes: { ...run.notes, [id]: e.target.value },
-                          })
-                        }
-                        placeholder="Escribe los pasos para revisar los puntos de método"
-                      />
-                    </details>
+                    {sim && (
+                      <details key={id + 'work'}>
+                        <summary>Procedimiento</summary>
+                        <textarea
+                          aria-label={'Procedimiento ' + letter}
+                          value={note}
+                          readOnly={locked}
+                          onChange={(e) =>
+                            change({
+                              notes: { ...run.notes, [id]: e.target.value },
+                            })
+                          }
+                          placeholder="Escribe los pasos para revisar los puntos de método"
+                        />
+                      </details>
+                    )}
                   </>
                 )}
                 {locked && partMarks(p) > 0 && (
                   <div
+                    role="status"
                     className={
                       'feedback ' +
-                      (p.value !== null && correct(val, p.value, p.percentage)
+                      (p.value !== null &&
+                      correct(val, p.value, p.percentage, p.unit)
                         ? 'yes'
                         : '')
                     }
@@ -244,9 +251,11 @@ export function Workspace({ run, change, home, another }: Props) {
                         ? q.scheme === 'sin esquema'
                           ? 'Sin esquema de calificación'
                           : 'Pendiente de revisión humana'
-                        : correct(val, p.value, p.percentage)
-                          ? 'Resultado correcto · 1 punto verificado'
-                          : readNumber(val) === null
+                        : correct(val, p.value, p.percentage, p.unit)
+                          ? sim
+                            ? 'Resultado correcto · 1 punto verificado'
+                            : 'Resultado correcto'
+                          : answerNumber(val, p.percentage, p.unit) === null
                             ? 'Formato no reconocido'
                             : 'Resultado incorrecto'}
                   </div>
@@ -263,7 +272,7 @@ export function Workspace({ run, change, home, another }: Props) {
                         <MathText text={step} />
                       </p>
                     ))}
-                    {!!p.rubric.length && (
+                    {sim && !!p.rubric.length && (
                       <strong>
                         {q.origin === 'adapted'
                           ? 'Guía de revisión de MathX'
@@ -292,7 +301,7 @@ export function Workspace({ run, change, home, another }: Props) {
                   onClick={() => change({ checked: true })}
                 >
                   <Check size={17} />
-                  Comprobar respuestas
+                  Comprobar respuesta
                 </button>
               ) : (
                 <button
@@ -305,15 +314,13 @@ export function Workspace({ run, change, home, another }: Props) {
                   Volver a intentar
                 </button>
               )}
-              {run.checked && (
-                <button
-                  className="secondary"
-                  onClick={() => setSolution((x) => !x)}
-                >
-                  <BookOpen size={17} />
-                  {solution ? 'Ocultar solución' : 'Ver solución'}
-                </button>
-              )}
+              <button
+                className="secondary"
+                onClick={() => setSolution((x) => !x)}
+              >
+                <BookOpen size={17} />
+                {solution ? 'Ocultar solución' : 'Ver solución'}
+              </button>
               <button className="secondary" onClick={another}>
                 Siguiente ejercicio <ArrowRight size={16} />
               </button>

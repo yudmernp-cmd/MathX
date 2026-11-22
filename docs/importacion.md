@@ -16,7 +16,7 @@ Importación del 20 de noviembre de 2026 y revisión de la primera edición del 
 | Reserva original | 2.076 ejercicios originales tras verificar y deduplicar, 1.038 por prueba |
 | Disponibilidad para el aula | Práctica con preferencia alterna entre orígenes cuando los filtros lo permiten. Simulacros de 80 puntos con 6 oficiales de 12 en P1 y 2 o 3 de 5 en P2 |
 
-Los 21 cuadernillos distintos de P1 tienen entre 11 y 13 preguntas. Los 22 de P2 tienen cinco. Los máximos observados por pregunta abarcan 4–10 puntos en P1 y 12–21 en P2. Estos son recuentos de la colección, no reglas universales del IB. MathX elige una estructura de 12 preguntas para P1 y de cinco para P2 y busca una suma exacta de los baremos. En P2 alterna cuál de los dos orígenes aporta la pregunta impar cuando el banco lo permite.
+Los 21 cuadernillos distintos de P1 tienen entre 11 y 13 preguntas. Los 22 de P2 tienen cinco. Los máximos observados por pregunta abarcan 4–10 puntos en P1 y 12–21 en P2. Estos son recuentos de la colección, no reglas universales del IB. En sus simulacros de práctica, MathX utiliza 12 preguntas en P1 y seis en P2 para dividir exactamente por mitad los originales y las variantes del banco privado. Ambas configuraciones suman 80 puntos.
 
 El motor original utiliza familias parametrizadas y un cálculo independiente de las respuestas. La acumulación de caudales y la amortización de préstamos incorporan recuperación de parámetros, encadenamiento de resultados y evaluación de hipótesis. El informe local contabiliza incisos y marcas para contrastar la extensión y el peso de los problemas. La clasificación de dificultad es editorial.
 

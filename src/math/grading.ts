@@ -9,6 +9,7 @@ export function readNumber(raw: string): number | null {
     .replace(/[×·]/g, '*')
     .replace(/÷/g, '/')
     .replace(/π/g, 'pi')
+    .replace(/√\s*(\d+(?:\.\d+)?)/g, 'sqrt($1)')
     .replace(/√/g, 'sqrt')
     .replace(/²/g, '^2')
     .replace(/³/g, '^3')
@@ -69,12 +70,48 @@ export function readNumber(raw: string): number | null {
     return null
   }
 }
-export function correct(raw: string, value: number, percentage = false) {
-  const s = raw.trim()
+// Strip only the requested unit and its spellings. Unknown dimensions remain
+// unparseable, while a bare number still uses the unit named in the question.
+const unitSuffix: Record<string, RegExp> = {
+  PEN: /\s*(?:sol(?:es)?|pen|s\/)$/iu,
+  USD: /\s*(?:dólar(?:es)?|usd)$/iu,
+  m: /\s*(?:metros?|m)$/iu,
+  cm: /\s*(?:centímetros?|cm)$/iu,
+  km: /\s*(?:kilómetros?|km)$/iu,
+  'm²': /\s*(?:metros? cuadrados?|m(?:²|\^?2))$/iu,
+  'cm³': /\s*(?:centímetros? cúbicos?|cm(?:³|\^?3))$/iu,
+  '°': /\s*(?:grados?|°)$/iu,
+  L: /\s*(?:litros?|l)$/iu,
+  g: /\s*(?:gramos?|g)$/iu,
+  min: /\s*(?:minutos?|min)$/iu,
+  h: /\s*(?:horas?|h)$/iu,
+  s: /\s*(?:segundos?|s)$/iu,
+  'm/s': /\s*(?:m\s*\/\s*s|metros? por segundo)$/iu,
+  'L/h': /\s*(?:l\s*\/\s*h|litros? por hora)$/iu,
+  días: /\s*días?$/iu,
+  años: /\s*años?$/iu,
+  asientos: /\s*asientos?$/iu,
+  muestras: /\s*muestras?$/iu,
+  mediciones: /\s*(?:medición|mediciones)$/iu,
+  semillas: /\s*semillas?$/iu,
+  libros: /\s*libros?$/iu,
+}
+export function answerNumber(raw: string, percentage = false, unit?: string) {
+  let s = raw.trim()
+  if (unit === 'PEN') s = s.replace(/^s\/\.?\s*/i, '')
+  if (unit && unitSuffix[unit]) s = s.replace(unitSuffix[unit], '')
   const hasPercent = s.endsWith('%')
+  if (hasPercent && unit && unit !== '%') return null
   const parsed = readNumber(hasPercent ? s.slice(0, -1) : s)
-  const result =
-    parsed !== null && hasPercent && !percentage ? parsed / 100 : parsed
+  return parsed !== null && hasPercent && !percentage ? parsed / 100 : parsed
+}
+export function correct(
+  raw: string,
+  value: number,
+  percentage = false,
+  unit?: string,
+) {
+  const result = answerNumber(raw, percentage, unit)
   if (result === null) return false
   // Accept exact evaluation or the target rounded to three or more significant figures.
   return [

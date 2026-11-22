@@ -3,6 +3,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/classroom.mjs": { "includeFiles": "server-data/bank.sqlite" }
+    "api/classroom.mjs": {
+      "includeFiles": "server-data/{bank.sqlite,exam-originals.cjs}"
+    }
   }
 }

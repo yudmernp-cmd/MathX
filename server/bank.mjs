@@ -1,9 +1,11 @@
 import { DatabaseSync } from 'node:sqlite'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
-import { continuation, supportsTopic, wordingKey } from './practice/index.mjs'
+import { createRequire } from 'node:module'
+import { individual } from './individual/index.mjs'
+import { continuation, wordingKey } from './practice/index.mjs'
 import { canAdapt, editionKey } from './practice/adaptations.mjs'
-import { hybrid, practice, Unavailable } from './hybrid.mjs'
+import { hybrid } from './hybrid.mjs'
 
 // A short paper and its extended version often share the first two tasks.
 // Keep that opening together even when the seed, marks or paper changes.
@@ -45,7 +47,13 @@ export function bank() {
     path.resolve(process.env.MATHX_DATA_DIR || 'server-data', 'bank.sqlite'),
     { readOnly: true },
   )
-  const reviewed = []
+  const reviewed = new Map()
+  const { examOriginals } = createRequire(import.meta.url)(
+    path.resolve(
+      process.env.MATHX_DATA_DIR || 'server-data',
+      'exam-originals.cjs',
+    ),
+  )
   const index = db
     .prepare(
       'SELECT id,paper,origin,theme,topic,level,marks,similarity,fingerprint,payload FROM items ORDER BY id',
@@ -56,7 +64,8 @@ export function bank() {
       const q = JSON.parse(payload)
       if (row.origin === 'real') {
         const key = editionKey(q)
-        if (canAdapt(key)) reviewed.push({ key, question: q, paper: row.paper })
+        if (canAdapt(key))
+          reviewed.set(row.id, { key, question: q, paper: row.paper })
       }
       return {
         ...metadata,
@@ -64,11 +73,6 @@ export function bank() {
         wordingKey: wordingKey(q),
       }
     })
-  const byId = new Map(index.map((row) => [row.id, row]))
-  const familyByKey = new Map(
-    index.map((row) => [row.historyKey, row.similarity]),
-  )
-  const lookup = db.prepare('SELECT payload FROM items WHERE id=?')
   const catalog = db
     .prepare(
       'SELECT DISTINCT paper,theme,topic FROM items ORDER BY theme,topic',
@@ -79,96 +83,54 @@ export function bank() {
     index,
     questions(config, sim, recent, seed, draw = 0, offset = seed % 330) {
       const rng = random(seed)
-      // Older clients recorded bank IDs. Resolve those against this edition too.
-      const history = recent.map((key) => byId.get(key)?.historyKey ?? key)
-      const seen = new Set(history)
-      const available = index.filter(
-        (q) => q.paper === config.paper && !seen.has(q.historyKey),
+      const seen = new Set(recent)
+      if (!sim) return [individual(config, seen, rng)]
+
+      const actual = new Map()
+      const rows = index.filter(
+        (row) => row.paper === config.paper && reviewed.has(row.id),
       )
-      let ids
-      if (sim) {
-        try {
-          ids = hybrid(available, config.paper, rng)
-        } catch (error) {
-          if (
-            error instanceof Unavailable &&
-            index.some(
-              (q) =>
-                q.paper === config.paper &&
-                seen.has(q.historyKey) &&
-                q.origin === 'real',
-            )
-          ) {
-            throw new Unavailable(
-              'Quedan muy pocas preguntas inéditas compatibles para formar otro simulacro de 80 puntos.',
-              error.details,
-            )
-          }
-          throw error
-        }
-      } else {
-        const matches = (q) =>
-          q.paper === config.paper &&
-          (!config.theme || q.theme === config.theme) &&
-          (!config.subtopic || q.topic === config.subtopic)
-        const stock = available.filter(
-          (q) => matches(q) && q.level === config.difficulty,
+      for (const q of examOriginals(config.paper, seed)) {
+        const content = wordingKey(q)
+        const id = 'mxv-' + content.slice(6)
+        if (actual.has(id) || seen.has(content)) continue
+        const marks = q.parts.reduce(
+          (s, p) => s + (p.marks ?? p.rubric.length),
+          0,
         )
-        const topics = catalog.filter(
-          (q) => matches(q) && supportsTopic(q.topic),
-        )
-        const adapters = reviewed.filter(
-          (s) =>
-            matches({ ...s.question, paper: s.paper }) &&
-            s.question.level === config.difficulty,
-        )
-        const phase = draw % 4
-        const freshOfficial = stock.some((q) => q.origin === 'real')
-        // First encounter the real question, then practice new numbers. Preserve
-        // a turn for our prepared variants and rotate even in a very narrow filter.
-        if (
-          stock.length &&
-          ((!topics.length && !adapters.length) ||
-            (phase === 0 && freshOfficial) ||
-            (phase === 2 && stock.some((q) => q.origin === 'original')))
-        ) {
-          const lastFamily = new Map()
-          history.forEach((key, i) => lastFamily.set(familyByKey.get(key), i))
-          ids = [
-            practice(
-              stock,
-              config,
-              rng,
-              lastFamily,
-              phase === 0 ? undefined : 'real',
-            ),
-          ]
-        } else if (
-          adapters.length &&
-          (phase === 1 || !topics.length || (phase === 0 && !freshOfficial))
-        ) {
-          const source = adapters[Math.floor(rng() * adapters.length)]
-          return [continuation(null, config, draw, offset, source)]
-        } else if (topics.length) {
-          return [
-            continuation(
-              topics[Math.floor(rng() * topics.length)],
-              config,
-              draw,
-              offset,
-            ),
-          ]
-        } else
-          throw new Unavailable(
-            'No hay una familia verificada para esta selección.',
-            { paper: config.paper },
-          )
+        actual.set(id, {
+          ...q,
+          id,
+          marks,
+          generated: true,
+          wordingKey: content,
+          historyKey: content,
+        })
+        rows.push({
+          id,
+          origin: 'original',
+          paper: config.paper,
+          similarity: q.family,
+          historyKey: historyKey({
+            origin: 'original',
+            payload: JSON.stringify(q),
+          }),
+          theme: q.theme,
+          level: q.level,
+          marks,
+        })
       }
-      return ids.map((id) => ({
-        ...JSON.parse(lookup.get(id).payload),
-        historyKey: byId.get(id).historyKey,
-        wordingKey: byId.get(id).wordingKey,
-      }))
+      return hybrid(rows, config.paper, rng).map((id) => {
+        if (actual.has(id)) return actual.get(id)
+        const variant = continuation(
+          null,
+          config,
+          draw,
+          offset,
+          reviewed.get(id),
+        )
+        return { ...variant, wordingKey: variant.historyKey }
+      })
     },
     asset(id) {
       return db.prepare('SELECT data FROM assets WHERE id=?').get(id)?.data

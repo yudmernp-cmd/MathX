@@ -8,6 +8,7 @@ import {
 import { useId, type ReactNode } from 'react'
 import {
   levels,
+  levelName,
   themes,
   type Config,
   type Difficulty,
@@ -52,33 +53,27 @@ export function Setup({
   mode,
   setMode,
   begin,
-  catalog,
   busy,
 }: {
   config: Config
   setConfig: (c: Config) => void
   mode: Mode
   setMode: (m: Mode) => void
-  catalog: Catalog
   busy: boolean
   begin: () => void
 }) {
   const isExam = mode === 'Simulacros'
-  const topics = catalog.filter(
-    (f) => f.paper === config.paper && f.theme === config.theme,
-  )
-  const current = topics.find((f) => f.topic === config.subtopic)
   const summary = [
     ['Asignatura', config.course + ' NM'],
-    ['Prueba', 'Prueba ' + config.paper],
     ...(isExam
-      ? []
+      ? [
+          ['Prueba', 'Prueba ' + config.paper],
+          ['Calculadora', 'Gráfica requerida'],
+        ]
       : [
           ['Tema', config.theme || 'Todos los temas'],
-          ['Subtema', current?.topic || 'Todos los subtemas'],
+          ['Dificultad', levelName[config.difficulty]],
         ]),
-    ...(!isExam ? [['Dificultad', config.difficulty]] : []),
-    ['Calculadora', 'Gráfica requerida'],
   ]
   return (
     <>
@@ -110,33 +105,27 @@ export function Setup({
               })}
             </div>
           </fieldset>
-          <fieldset>
-            <legend>Prueba</legend>
-            <div className="seg">
-              {([1, 2] as const).map((p) => (
-                <button
-                  key={p}
-                  aria-pressed={config.paper === p}
-                  onClick={() =>
-                    setConfig({
-                      ...config,
-                      paper: p,
-                      subtopic: catalog.some(
-                        (f) =>
-                          f.paper === p &&
-                          f.topic === config.subtopic &&
-                          f.theme === config.theme,
-                      )
-                        ? config.subtopic
-                        : undefined,
-                    })
-                  }
-                >
-                  Prueba {p}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          {isExam && (
+            <fieldset>
+              <legend>Prueba</legend>
+              <div className="seg">
+                {([1, 2] as const).map((p) => (
+                  <button
+                    key={p}
+                    aria-pressed={config.paper === p}
+                    onClick={() =>
+                      setConfig({
+                        ...config,
+                        paper: p,
+                      })
+                    }
+                  >
+                    Prueba {p}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
           {!isExam && (
             <div className="topic-fields">
               <Select
@@ -155,22 +144,6 @@ export function Setup({
                   <option key={t}>{t}</option>
                 ))}
               </Select>
-              {config.theme && (
-                <Select
-                  label="Subtema"
-                  value={config.subtopic || ''}
-                  onChange={(value) =>
-                    setConfig({ ...config, subtopic: value || undefined })
-                  }
-                >
-                  <option value="">Todo el tema</option>
-                  {topics.map((f) => (
-                    <option key={f.topic} value={f.topic}>
-                      {f.topic}
-                    </option>
-                  ))}
-                </Select>
-              )}
             </div>
           )}
           {!isExam && (
@@ -185,7 +158,7 @@ export function Setup({
                       setConfig({ ...config, difficulty: l as Difficulty })
                     }
                   >
-                    {l}
+                    {levelName[l]}
                   </button>
                 ))}
               </div>
@@ -205,8 +178,8 @@ export function Setup({
           {isExam && (
             <p className="exam-format">
               {config.paper === 1
-                ? 'Preguntas de respuesta corta.'
-                : 'Problemas de respuesta extensa.'}
+                ? '12 preguntas cortas. Seis originales y seis variantes de examen.'
+                : '6 problemas extensos. Tres originales y tres variantes de examen.'}
             </p>
           )}
           <div className="time-note">

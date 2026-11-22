@@ -33,7 +33,10 @@ export function score(run: Run) {
         withoutScheme += max
         return
       }
-      if (p.value !== null && correct(answer || '', p.value, p.percentage))
+      if (
+        p.value !== null &&
+        correct(answer || '', p.value, p.percentage, p.unit)
+      )
         verified++
       if (p.value === null ? answer : note)
         pending += max - (p.value === null ? 0 : 1)
