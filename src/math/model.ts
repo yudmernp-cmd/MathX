@@ -19,6 +19,7 @@ export type Theme = (typeof themes)[number]
 export type Config = {
   course: Course
   paper: Paper
+  drillLevel?: number
   difficulty: Difficulty
   theme?: Theme
   subtopic?: string
@@ -49,6 +50,7 @@ export type Figure =
       points: [number, number][]
     }
 export type Problem = {
+  drill?: import('./drills').Drill
   id?: string
   historyKey?: string
   origin?: 'original' | 'real' | 'adapted'

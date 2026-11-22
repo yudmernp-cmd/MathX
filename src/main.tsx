@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import 'katex/dist/katex.min.css'
 import './style.css'
 import { Setup, type Catalog } from './Setup'
+import { DrillWorkspace } from './DrillWorkspace'
+import { drillRun, drillThemeName, type Drill } from './math/drills'
+import { themes } from './math/model'
 import { Workspace } from './Workspace'
 import { restore, storageKey, type Run, type Mode } from './math/session'
 import type { Config } from './math/model'
@@ -45,13 +48,18 @@ function clearSession() {
 function Classroom({ onExpired }: { onExpired: () => void }) {
   const [run, setRun] = useState<Run | null>(() => {
     const stored = restore()
-    return stored?.mode === 'Ejercicios' && !stored.questions[0]?.individual
+    return stored?.mode === 'Ejercicios' && !stored.questions[0]?.drill
       ? null
       : stored
   })
-  const [config, setConfig] = useState<Config>(
-    run?.config || { course: 'MAI', paper: 1, difficulty: 'Medio' },
-  )
+  const [config, setConfig] = useState<Config>({
+    course: 'MAI',
+    paper: 1,
+    difficulty: 'Medio',
+    ...run?.config,
+    theme: run?.config.theme ?? themes[0],
+    drillLevel: run?.config.drillLevel ?? 3,
+  })
   const [mode, setMode] = useState<Mode>(run?.mode || 'Ejercicios')
   const [catalog, setCatalog] = useState<Catalog>([])
   const [loading, setLoading] = useState(false),
@@ -104,17 +112,23 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
     setLoading(true)
     setError('')
     try {
-      const next = await withHistory((ticket) =>
-        request<Run>(mode === 'Ejercicios' ? 'practice' : 'exam', {
-          course: config.course,
-          paper: config.paper,
-          difficulty: config.difficulty,
-          theme: config.theme,
-          ...ticket,
-        }),
+      const next = await withHistory(
+        async (ticket) => {
+          if (mode === 'Simulacros')
+            return request<Run>('exam', { ...config, ...ticket })
+          const items = await request<Drill[]>('drills', {
+            tema: drillThemeName(config.theme),
+            cantidad: 15,
+            dificultad_objetivo: config.drillLevel ?? 3,
+            ...ticket,
+          })
+          return drillRun(items, config, ticket.draw)
+        },
+        mode === 'Ejercicios'
+          ? 'drills:' + config.theme + ':' + config.drillLevel
+          : 'serie',
       )
       if (!next) return
-      next.ordinal = run?.mode === 'Ejercicios' ? (run.ordinal || 1) + 1 : 1
       setRun(next)
       window.scrollTo(0, 0)
     } catch (e) {
@@ -124,6 +138,13 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
       pending.current = false
       setLoading(false)
     }
+  }
+  function home() {
+    setRun(null)
+    try {
+      sessionStorage.removeItem(storageKey)
+    } catch {}
+    setError('')
   }
   return (
     <>
@@ -138,19 +159,24 @@ function Classroom({ onExpired }: { onExpired: () => void }) {
         </p>
       )}
       {run ? (
-        <Workspace
-          key={run.seed}
-          run={run}
-          change={change}
-          another={begin}
-          home={() => {
-            setRun(null)
-            try {
-              sessionStorage.removeItem(storageKey)
-            } catch {}
-            setError('')
-          }}
-        />
+        run.questions[0]?.drill ? (
+          <DrillWorkspace
+            key={run.seed}
+            run={run}
+            change={change}
+            another={begin}
+            busy={loading}
+            home={home}
+          />
+        ) : (
+          <Workspace
+            key={run.seed}
+            run={run}
+            change={change}
+            another={begin}
+            home={home}
+          />
+        )
       ) : catalog.length ? (
         <Setup
           config={config}

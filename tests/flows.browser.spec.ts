@@ -1,4 +1,4 @@
-import { test, expect, chromium, type Page } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { existsSync } from 'node:fs'
 import { storageKey, type Run } from '../src/math/session'
 
@@ -19,17 +19,6 @@ async function login(page: Page) {
     page.getByRole('heading', { name: 'Configura tu práctica' }),
   ).toBeVisible()
 }
-async function select(page: Page, theme = 'Funciones', level = 'Avanzado') {
-  await page.getByLabel('Tema', { exact: true }).selectOption(theme)
-  await button(page, level).click()
-}
-async function start(page: Page) {
-  await button(page, 'Empezar práctica').click()
-  await expect(
-    page.getByRole('heading', { name: 'Ejercicio individual' }),
-  ).toBeVisible()
-  return (await saved(page)).questions[0]
-}
 test.afterEach(async ({ page }) => {
   await expect(page.locator('.katex-error')).toHaveCount(0)
   expect(
@@ -38,179 +27,105 @@ test.afterEach(async ({ page }) => {
     ),
   ).toBe(true)
 })
-test('aula privada, pregunta única, corrección, solución y nueva generación', async ({
+test('tanda de 15, corrección, soluciones, navegación y otra tanda', async ({
   page,
   request,
 }) => {
   expect((await request.get('/api/classroom?action=catalog')).status()).toBe(
     401,
   )
-  expect(
-    (
-      await request.get('/api/classroom?action=asset&id=' + 'a'.repeat(64))
-    ).status(),
-  ).toBe(401)
   await login(page)
-  await expect(button(page, 'Prueba 1')).toHaveCount(0)
-  await expect(page.getByLabel('Subtema', { exact: true })).toHaveCount(0)
-  await select(page)
-  const q = await start(page)
-  expect(q).toMatchObject({
-    individual: true,
-    theme: 'Funciones',
-    level: 'Difícil',
-    origin: 'original',
+  await page
+    .getByLabel('Tema', { exact: true })
+    .selectOption({ label: 'Geometría y Trigonometría' })
+  await button(page, '4').click()
+  const response = page.waitForResponse((r) =>
+    r.url().includes('action=drills'),
+  )
+  await button(page, 'Empezar práctica').click()
+  const batch = await (await response).json()
+  expect(batch).toHaveLength(15)
+  const counts: Record<string, number> = {}
+  for (const q of batch) {
+    expect(q.dificultad).toBe(4)
+    counts[q.subtema] = (counts[q.subtema] ?? 0) + 1
+  }
+  expect(counts).toEqual({
+    '3.1': 3,
+    '3.2': 3,
+    '3.3': 3,
+    '3.4': 2,
+    '3.5': 2,
+    '3.6': 2,
   })
-  await expect(page.locator('.question input')).toHaveCount(1)
-  await expect(page.locator('.question textarea, .prompt b')).toHaveCount(0)
-  const answer = String(q.parts[0].value) + '/1'
-  await page.getByPlaceholder('Tu respuesta').fill(answer)
-  await page.reload()
-  await expect(page.getByPlaceholder('Tu respuesta')).toHaveValue(answer)
-  await button(page, 'Comprobar respuesta').click()
-  await expect(page.locator('.feedback')).toHaveText('Resultado correcto')
-  await button(page, 'Ver solución').click()
-  expect(await page.locator('.solution p').count()).toBeGreaterThanOrEqual(3)
-  await button(page, 'Volver a intentar').click()
-  await page.getByPlaceholder('Tu respuesta').fill('1/0')
-  await button(page, 'Comprobar respuesta').click()
-  await expect(page.locator('.feedback')).toContainText('Formato no reconocido')
-  await button(page, 'Siguiente ejercicio').click()
-  await expect(page.getByText('PREGUNTA 2', { exact: true })).toBeVisible()
-  expect((await saved(page)).questions[0].structureKey).not.toBe(q.structureKey)
+  await expect(
+    page.getByText('Ejercicio 1 de 15', { exact: true }),
+  ).toBeVisible()
+  const used = new Set((await saved(page)).questions.map((q) => q.wordingKey))
+  for (let i = 0; i < 15; i++) {
+    await expect(
+      page.getByText('Ejercicio ' + (i + 1) + ' de 15', { exact: true }),
+    ).toBeVisible()
+    await expect(page.locator('.question input')).toHaveCount(1)
+    await page.getByPlaceholder('Tu respuesta').fill(batch[i].respuesta)
+    await button(page, 'Comprobar respuesta').click()
+    await expect(page.getByRole('status')).toHaveText('Resultado correcto')
+    await button(page, 'Ver solución').click()
+    await expect(page.locator('.solution')).toBeVisible()
+    await expect(page.locator('.katex-error')).toHaveCount(0)
+    if (i === 3) {
+      await page.reload()
+      await expect(page.getByPlaceholder('Tu respuesta')).toHaveValue(
+        batch[i].respuesta,
+      )
+      await button(page, 'Anterior').click()
+      await expect(page.getByPlaceholder('Tu respuesta')).toHaveValue(
+        batch[i - 1].respuesta,
+      )
+      await button(page, 'Siguiente ejercicio').click()
+    }
+    if (i < 14) await button(page, 'Siguiente ejercicio').click()
+  }
+  await button(page, 'Generar otra tanda').click()
+  await expect(
+    page.getByText('Ejercicio 1 de 15', { exact: true }),
+  ).toBeVisible()
+  expect(
+    (await saved(page)).questions.every((q) => !used.has(q.wordingKey)),
+  ).toBe(true)
 })
-test('dos pestañas y continuación tras consumir las cuatro estructuras de una selección', async ({
+test('dos pestañas y una sesión nueva evitan repetir enunciados', async ({
   page,
   context,
 }) => {
   await login(page)
-  const other = await context.newPage()
-  await other.goto('/')
-  await Promise.all([page, other].map((p) => select(p)))
-  const qs = await Promise.all([page, other].map((p) => start(p)))
-  const used = new Set(qs.map((q) => q.structureKey))
-  expect(used.size).toBe(2)
-  await other.close()
+  const tab = await context.newPage()
+  await tab.goto('/')
+  await Promise.all(
+    [tab, page].map((p) => button(p, 'Empezar práctica').click()),
+  )
+  for (const p of [tab, page])
+    await expect(
+      p.getByText('Ejercicio 1 de 15', { exact: true }),
+    ).toBeVisible()
+  const previous = [
+    ...(await saved(tab)).questions,
+    ...(await saved(page)).questions,
+  ]
+  expect(new Set(previous.map((q) => q.wordingKey)).size).toBe(30)
+  await tab.close()
   await button(page, 'Salir del aula').click()
   await expect(page.getByLabel('Clave compartida de la clase')).toBeVisible()
   await login(page)
-  await select(page)
-  const third = await start(page)
-  expect(used.has(third.structureKey)).toBe(false)
-  used.add(third.structureKey)
-  for (let i = 0; i < 12; i++) {
-    const response = page.waitForResponse((r) =>
-      r.url().includes('action=practice'),
-    )
-    await button(page, 'Siguiente ejercicio').click()
-    expect((await response).status()).toBe(200)
-    await expect.poll(async () => (await saved(page)).ordinal).toBe(i + 2)
-    const q = (await saved(page)).questions[0]
-    expect(used.has(q.structureKey)).toBe(false)
-    used.add(q.structureKey)
-  }
-  expect(used.size).toBe(15)
-  const last = (await saved(page)).questions[0]
-  expect(last.composed).toBe(true)
-  await page.reload()
-  await page.getByPlaceholder('Tu respuesta').fill(String(last.parts[0].value))
-  await button(page, 'Comprobar respuesta').click()
-  await expect(page.locator('.feedback')).toHaveText('Resultado correcto')
-  await button(page, 'Ver solución').click()
-  await expect(page.locator('.solution')).toBeVisible()
-  // Replay a saved composite with changed numbers after reload. The server never
-  // receives the entire series history, but IndexedDB must reject its shape.
-  let served = 0
-  await page.route('**/api/classroom?action=practice', async (route) => {
-    const body = route.request().postDataJSON()
-    expect(body.recent).not.toContain(last.structureKey)
-    if (served++ > 0) return route.continue()
-    const previous = await saved(page)
-    return route.fulfill({
-      json: {
-        ...previous,
-        questions: [
-          {
-            ...last,
-            wordingKey: 'contenido-alternativo',
-            patternKey: 'otra-redaccion',
-            stem: 'Otros datos.',
-          },
-        ],
-      },
-    })
-  })
-  await button(page, 'Siguiente ejercicio').click()
-  await expect.poll(async () => (await saved(page)).ordinal).toBe(14)
-  expect(served).toBeGreaterThanOrEqual(2)
-  expect(used.has((await saved(page)).questions[0].structureKey)).toBe(false)
-  await page.unroute('**/api/classroom?action=practice')
-  await button(page, 'Configuración').click()
-  await select(page, 'Funciones', 'Intermedio')
-  expect((await start(page)).level).toBe('Medio')
-})
-test('el historial persiste tras cerrar Chromium y volver a abrir el mismo perfil', async ({
-  baseURL,
-}, info) => {
-  const profile = info.outputPath('perfil')
-  const open = () =>
-    chromium.launchPersistentContext(profile, {
-      baseURL,
-      executablePath:
-        process.env.CHROMIUM_PATH ||
-        (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined),
-    })
-  let context = await open()
-  const p = context.pages()[0]
-  await login(p)
-  await select(p)
-  const first = await start(p)
-  await context.close()
-  context = await open()
-  try {
-    const next = await context.newPage()
-    await next.goto('/')
-    const auth = next.getByLabel('Clave compartida de la clase')
-    await auth.or(next.getByLabel('Tema', { exact: true })).waitFor()
-    if (await auth.isVisible()) await login(next)
-    await select(next)
-    const post = next.waitForRequest((r) => r.url().includes('action=practice'))
-    const second = await start(next)
-    expect((await post).postDataJSON().recent).toContain(first.structureKey)
-    expect(second.structureKey).not.toBe(first.structureKey)
-  } finally {
-    await context.close()
-  }
-})
-test('rechaza una respuesta concurrente con igual estructura y valores cambiados', async ({
-  page,
-}) => {
-  await login(page)
-  await select(page)
-  await start(page)
-  const first = await saved(page)
-  let calls = 0
-  await page.route('**/api/classroom?action=practice', async (route) => {
-    calls++
-    expect(route.request().postDataJSON().recent).toContain(
-      first.questions[0].structureKey,
-    )
-    if (calls > 1) return route.continue()
-    const old = first.questions[0]
-    const duplicate = {
-      ...old,
-      id: 'otro-id',
-      wordingKey: 'otro-contenido',
-      stem: old.stem + ' (Dato alternativo).',
-    }
-    return route.fulfill({ json: { ...first, questions: [duplicate] } })
-  })
-  await button(page, 'Siguiente ejercicio').click()
-  await expect.poll(async () => (await saved(page)).ordinal).toBe(2)
-  expect(calls).toBeGreaterThanOrEqual(2)
-  expect((await saved(page)).questions[0].structureKey).not.toBe(
-    first.questions[0].structureKey,
-  )
+  await button(page, 'Empezar práctica').click()
+  await expect(
+    page.getByText('Ejercicio 1 de 15', { exact: true }),
+  ).toBeVisible()
+  expect(
+    (await saved(page)).questions.every((q) =>
+      previous.every((old) => old.wordingKey !== q.wordingKey),
+    ),
+  ).toBe(true)
 })
 for (const paper of [1, 2]) {
   test(

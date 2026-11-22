@@ -19,21 +19,21 @@ type Ticket = { recent: string[]; draw: number; offset: number }
 
 // Reserve the numerical draw before making the request. Failed requests may skip a
 // number; two tabs (including across reloads) can never take the same ticket.
-function nextTicket(db: IDBDatabase): Promise<Ticket> {
+function nextTicket(db: IDBDatabase, series: string): Promise<Ticket> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction('historial', 'readwrite', {
         durability: 'strict',
       }),
       store = tx.objectStore('historial')
     const previous = store.get('vistos'),
-      counter = store.get('serie')
+      counter = store.get(series)
     let draw: number, offset: number
     counter.onsuccess = () => {
       draw = counter.result?.next ?? 0
       offset =
         counter.result?.offset ??
         crypto.getRandomValues(new Uint32Array(1))[0] % 330
-      store.put({ next: draw + 1, offset }, 'serie')
+      store.put({ next: draw + 1, offset }, series)
     }
     tx.oncomplete = () =>
       resolve({
@@ -129,7 +129,10 @@ function reserve(
     tx.onabort = () => reject(new HistoryError())
   })
 }
-export async function withHistory(select?: (ticket: Ticket) => Promise<Run>) {
+export async function withHistory(
+  select?: (ticket: Ticket) => Promise<Run>,
+  series = 'serie',
+) {
   const db = await openHistory()
   try {
     const legacy = JSON.parse(sessionStorage.getItem('mathx.recientes') ?? '[]')
@@ -140,7 +143,7 @@ export async function withHistory(select?: (ticket: Ticket) => Promise<Run>) {
     if (!select) return
     const collisions = new Set<string>()
     for (let attempt = 0; attempt < 32; attempt++) {
-      const ticket = await nextTicket(db)
+      const ticket = await nextTicket(db, series)
       const run = await select({
         ...ticket,
         recent: [...ticket.recent, ...collisions],

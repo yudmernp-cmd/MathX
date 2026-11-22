@@ -6,15 +6,9 @@ import {
   Clock3,
 } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
-import {
-  levels,
-  levelName,
-  themes,
-  type Config,
-  type Difficulty,
-  type Theme,
-} from './math/model'
+import { themes, type Config, type Theme } from './math/model'
 
+import { drillThemeName } from './math/drills'
 import type { Mode } from './math/session'
 
 export type Catalog = { paper: 1 | 2; theme: Theme; topic: string }[]
@@ -71,8 +65,8 @@ export function Setup({
           ['Calculadora', 'Gráfica requerida'],
         ]
       : [
-          ['Tema', config.theme || 'Todos los temas'],
-          ['Dificultad', levelName[config.difficulty]],
+          ['Tema', drillThemeName(config.theme)],
+          ['Dificultad', (config.drillLevel ?? 3) + ' de 5'],
         ]),
   ]
   return (
@@ -130,7 +124,7 @@ export function Setup({
             <div className="topic-fields">
               <Select
                 label="Tema"
-                value={config.theme || ''}
+                value={config.theme || themes[0]}
                 onChange={(theme) =>
                   setConfig({
                     ...config,
@@ -139,9 +133,10 @@ export function Setup({
                   })
                 }
               >
-                <option value="">Todos los temas</option>
                 {themes.map((t) => (
-                  <option key={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {drillThemeName(t)}
+                  </option>
                 ))}
               </Select>
             </div>
@@ -150,15 +145,13 @@ export function Setup({
             <fieldset>
               <legend>Dificultad</legend>
               <div className="seg difficulties">
-                {levels.map((l) => (
+                {[1, 2, 3, 4, 5].map((l) => (
                   <button
                     key={l}
-                    aria-pressed={config.difficulty === l}
-                    onClick={() =>
-                      setConfig({ ...config, difficulty: l as Difficulty })
-                    }
+                    aria-pressed={(config.drillLevel ?? 3) === l}
+                    onClick={() => setConfig({ ...config, drillLevel: l })}
                   >
-                    {levelName[l]}
+                    {l}
                   </button>
                 ))}
               </div>
@@ -184,7 +177,9 @@ export function Setup({
           )}
           <div className="time-note">
             <Clock3 size={16} />
-            {isExam ? '90 minutos · 80 puntos' : 'Sin límite de tiempo'}
+            {isExam
+              ? '90 minutos · 80 puntos'
+              : '15 ejercicios · Sin límite de tiempo'}
           </div>
           <button disabled={busy} className="primary start" onClick={begin}>
             {isExam ? 'Empezar simulacro' : 'Empezar práctica'}

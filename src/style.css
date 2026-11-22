@@ -704,3 +704,7 @@ dialog::backdrop {
 .work-layout.solo .prompt {
   display: block;
 }
+.drill-expression {
+  overflow-x: auto;
+  padding-block: 0.5rem;
+}

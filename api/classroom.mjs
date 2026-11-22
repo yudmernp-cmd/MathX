@@ -5,6 +5,7 @@ import {
   randomBytes,
   randomInt,
 } from 'node:crypto'
+import { drills, topics } from '../server/drills/index.mjs'
 import { bank } from '../server/bank.mjs'
 import { levels, themes, Unavailable } from '../server/hybrid.mjs'
 const cookie = '__Host-mathx',
@@ -82,7 +83,7 @@ export default async function handler(req, res) {
     }
   }
   try {
-    const selection = ['practice', 'exam'].includes(action)
+    const selection = ['practice', 'exam', 'drills'].includes(action)
     const limit = selection ? 1024 * 1024 : 8192
     if (req.method === 'POST' && Number(req.headers['content-length']) > limit)
       return send(413, { error: 'Solicitud demasiado extensa.' })
@@ -125,6 +126,50 @@ export default async function handler(req, res) {
       res.setHeader('Content-Type', 'image/webp')
       res.end(Buffer.from(data))
       return
+    }
+    if (req.method === 'POST' && action === 'drills') {
+      const {
+        tema,
+        dificultad_objetivo = 3,
+        cantidad = 15,
+        recent = [],
+        draw,
+        offset = 0,
+      } = await read(req, limit)
+      if (
+        typeof tema !== 'string' ||
+        !Object.hasOwn(topics, tema) ||
+        (draw !== undefined && (!Number.isSafeInteger(draw) || draw < 0)) ||
+        !Number.isInteger(offset) ||
+        offset < 0 ||
+        offset >= 330 ||
+        cantidad !== 15 ||
+        !Number.isInteger(dificultad_objetivo) ||
+        dificultad_objetivo < 1 ||
+        dificultad_objetivo > 5 ||
+        !Array.isArray(recent) ||
+        recent.length > 15000 ||
+        recent.some((s) => typeof s !== 'string' || s.length > 160)
+      )
+        return send(400, {
+          error:
+            'Elige un tema y una dificultad del 1 al 5 para la tanda de 15 ejercicios.',
+        })
+      return send(
+        200,
+        drills(
+          tema,
+          dificultad_objetivo,
+          draw === undefined
+            ? randomInt(2 ** 32)
+            : digest(
+                JSON.stringify([tema, dificultad_objetivo, offset, draw]),
+              ).readUInt32BE(),
+          recent,
+          draw,
+          offset,
+        ),
+      )
     }
     if (req.method === 'POST' && selection) {
       const {
