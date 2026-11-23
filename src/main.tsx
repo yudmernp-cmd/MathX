@@ -1,3 +1,4 @@
+import { ActivityNotice, LearningPanel } from './Learning'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CourseCover } from './CourseCover'
 import {
@@ -28,8 +29,10 @@ function clearSession() {
 }
 function Classroom({
   onExpired,
+  openActivities,
   owner,
 }: {
+  openActivities: () => void
   onExpired: () => void
   owner: string
 }) {
@@ -175,6 +178,7 @@ function Classroom({
           )}
         </p>
       )}
+      {!run && <ActivityNotice open={openActivities} />}
       {storageFailed && (
         <p role="status">
           Mantén abierta esta página para conservar las respuestas.
@@ -232,7 +236,8 @@ type Identity = { expires: number; id?: string; admin?: boolean }
 function App() {
   const [identity, setIdentity] = useState<Identity>({ expires: 0 }),
     [adminForm, setAdminForm] = useState(false),
-    [ranking, setRanking] = useState(false)
+    [view, setView] = useState<'practice' | 'ranking' | 'learning'>('practice'),
+    [working, setWorking] = useState(false)
   const [name, setName] = useState(''),
     [dni, setDni] = useState('')
 
@@ -243,8 +248,9 @@ function App() {
     [busy, setBusy] = useState(false)
   const expire = useCallback(() => {
     clearSession()
+    setWorking(false)
     setIdentity({ expires: 0 })
-    setRanking(false)
+    setView('practice')
     setName('')
     setDni('')
     setExpires(0)
@@ -321,7 +327,7 @@ function App() {
           <span className="header-label">
             MAI NM · Aplicaciones e Interpretación
           </span>
-          {!!expires && (
+          {!!expires && !working && (
             <button
               className="back logout"
               onClick={() => auth(true)}
@@ -342,30 +348,45 @@ function App() {
           <p role="status">Comprobando acceso…</p>
         ) : expires ? (
           identity.admin ? (
-            <Boards admin />
+            <>
+              <LearningPanel admin working={setWorking} />
+              {!working && <Boards admin />}
+            </>
           ) : (
             <>
-              <nav className="section-tabs" aria-label="Aula">
-                <button
-                  className="secondary"
-                  aria-pressed={!ranking}
-                  onClick={() => setRanking(false)}
-                >
-                  <BookOpen size={16} aria-hidden="true" /> Práctica
-                </button>
-                <button
-                  className="secondary"
-                  aria-pressed={ranking}
-                  onClick={() => setRanking(true)}
-                >
-                  <ChartNoAxesColumnIncreasing size={16} aria-hidden="true" />{' '}
-                  Clasificaciones
-                </button>
-              </nav>
-              {ranking ? (
+              {!working && (
+                <nav className="section-tabs" aria-label="Aula">
+                  <button
+                    className="secondary"
+                    aria-pressed={view === 'practice'}
+                    onClick={() => setView('practice')}
+                  >
+                    <BookOpen size={16} aria-hidden="true" /> Práctica
+                  </button>
+                  <button
+                    className="secondary"
+                    aria-pressed={view === 'ranking'}
+                    onClick={() => setView('ranking')}
+                  >
+                    <ChartNoAxesColumnIncreasing size={16} aria-hidden="true" />{' '}
+                    Clasificaciones
+                  </button>
+                  <button
+                    className="secondary"
+                    aria-pressed={view === 'learning'}
+                    onClick={() => setView('learning')}
+                  >
+                    Mi aula
+                  </button>
+                </nav>
+              )}
+              {view === 'learning' ? (
+                <LearningPanel working={setWorking} />
+              ) : view === 'ranking' ? (
                 <Boards admin={false} />
               ) : (
                 <Classroom
+                  openActivities={() => setView('learning')}
                   key={identity.id}
                   owner={identity.id!}
                   onExpired={expire}

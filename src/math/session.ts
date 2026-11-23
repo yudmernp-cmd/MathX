@@ -22,12 +22,13 @@ export type Run = {
 }
 export const duration = 90 * 60 * 1000
 export const key = (i: number, j: number) => i + '-' + j
-export function score(run: Run) {
+export function score(run: Run, theme?: Problem['theme']) {
   let verified = 0,
     pending = 0,
     total = 0,
     withoutScheme = 0
-  run.questions.forEach((q, i) =>
+  run.questions.forEach((q, i) => {
+    if (theme && q.theme !== theme) return
     q.parts.forEach((p, j) => {
       const id = key(i, j),
         answer = run.answers[id]?.trim(),
@@ -45,8 +46,8 @@ export function score(run: Run) {
         verified++
       if (p.value === null ? answer : note)
         pending += max - (p.value === null ? 0 : 1)
-    }),
-  )
+    })
+  })
   return { verified, pending, total, withoutScheme }
 }
 export const storageKey = 'mathx.classroom.2'

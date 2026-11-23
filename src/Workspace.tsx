@@ -1,3 +1,4 @@
+import { MathKeys } from './MathKeys'
 import {
   ArrowLeft,
   ArrowRight,
@@ -121,6 +122,27 @@ export function Workspace({ run, change, home, another }: Props) {
                   : 'La convocatoria o el plazo de entrega ha terminado.'}
               </p>
             )}
+            <details>
+              <summary>Informe por tema</summary>
+              <ul>
+                {Array.from(
+                  new Set(run.questions.map((item) => item.theme)),
+                ).map((theme) => {
+                  const { verified, pending, total, withoutScheme } = score(
+                    run,
+                    theme,
+                  )
+                  return (
+                    <li key={theme}>
+                      {theme} · {verified} puntos verificados · {pending}{' '}
+                      pendientes de revisión · {total} posibles
+                      {withoutScheme > 0 &&
+                        ' · ' + withoutScheme + ' sin esquema'}
+                    </li>
+                  )
+                })}
+              </ul>
+            </details>
             <small>
               La comprobación automática valora el resultado numérico. Revisa el
               procedimiento escrito con el baremo. Puntuación de práctica.
@@ -229,6 +251,7 @@ export function Workspace({ run, change, home, another }: Props) {
                       <details key={id + 'work'}>
                         <summary>Procedimiento</summary>
                         <textarea
+                          id={'work' + id}
                           aria-label={'Procedimiento ' + letter}
                           value={note}
                           readOnly={locked}
@@ -239,9 +262,20 @@ export function Workspace({ run, change, home, another }: Props) {
                           }
                           placeholder="Escribe los pasos para revisar los puntos de método"
                         />
+                        {!locked && (
+                          <MathKeys
+                            target={'work' + id}
+                            change={(value) =>
+                              change({ notes: { ...run.notes, [id]: value } })
+                            }
+                          />
+                        )}
                       </details>
                     )}
                   </>
+                )}
+                {!locked && partMarks(p) > 0 && (
+                  <MathKeys target={'answer' + id} change={answer} />
                 )}
                 {locked && partMarks(p) > 0 && (
                   <div

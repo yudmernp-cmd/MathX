@@ -80,6 +80,23 @@ export function bank() {
     .all()
   current = {
     catalog,
+    sourceList() {
+      return [...reviewed.entries()].map(([id, { paper, question: q }]) => ({
+        id,
+        paper,
+        title: [
+          q.provenance?.session,
+          q.provenance?.year,
+          'Pregunta ' + q.provenance?.number,
+          q.topic,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      }))
+    },
+    source(id) {
+      return reviewed.get(id)?.question
+    },
     index,
     questions(config, sim, recent, seed, draw = 0, offset = seed % 330) {
       const rng = random(seed)

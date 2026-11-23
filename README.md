@@ -6,7 +6,17 @@ Aula privada de Matemáticas IB · Aplicaciones e Interpretación, Nivel Medio. 
 
 Utiliza Node 24. Configura `MATHX_ADMIN_PASSWORD` (una clave exclusiva del administrador) y `MATHX_SESSION_SECRET` (un secreto aleatorio estable de al menos 32 caracteres). En producción conecta al proyecto un almacén privado de Vercel Blob con `BLOB_READ_WRITE_TOKEN`. En desarrollo local se utiliza SQLite en `.private/classroom.sqlite`. Conserva el secreto de sesión: protege también las huellas del DNI y del código. El acceso individual sustituye a la antigua clave de aula.
 
-En Administración, inscribe a cada estudiante con su nombre y DNI peruano de ocho dígitos y entrégale el código de seis dígitos por un canal privado. El DNI y el código se guardan como huellas con clave. Las clasificaciones del aula solo muestran nombres y puntos. Cada ejercicio distinto acertado suma un punto. Activar la convocatoria abre el top de simulacros; registra el mejor resultado verificado de cada participante en simulacros iniciados y entregados durante esa convocatoria. Cerrarla retira los resultados de esa convocatoria. Los ejercicios conservan su acumulado.
+En Administración, inscribe a cada estudiante con su nombre y DNI peruano de ocho dígitos y entrégale el código de seis dígitos por un canal privado. El DNI y el código se guardan como huellas con clave. Las clasificaciones del aula solo muestran nombres y puntos. Cada ejercicio distinto acertado suma un punto. Cada reto corregido aporta entre 0 y 20 puntos al top de ejercicios. Si el profesor modifica la nota, se aplica la diferencia.
+
+## Actividades del profesor
+
+En **Administración → Asignar actividad**, el profesor puede escribir un reto con una solución opcional o seleccionar una pregunta del banco privado de Prueba 1 o 2. Se admite un reto diario avanzado por fecha de Lima. Para convocar un simulacro común de 80 puntos, elige la prueba, las fechas de apertura y cierre y la duración (90 minutos por defecto). El top de esa convocatoria se puede mostrar u ocultar.
+
+El estudiante abre la actividad desde **Mi aula**. El servidor conserva respuestas y procedimientos confirmados y recoge el último borrador guardado al vencer el plazo. Las notas se publican en **Entregas para revisar**. El profesor puntúa el reto sobre 20 y el simulacro por pregunta sobre un total de 80. El alumno puede consultar su entrega, las observaciones y el desglose del simulacro. Las soluciones de referencia se habilitan después del cierre para toda la clase.
+
+Al abrir un reto se solicita pantalla completa. **Avisos del reto** muestra los eventos de visibilidad y pantalla completa que comunica el navegador. Se comprueba la conexión cada 45 segundos y el panel muestra interrupción tras más de 90 segundos sin señal durante un intento activo. Un corte abrupto puede impedir el envío del último evento. Los avisos no modifican las notas.
+
+El progreso individual y del aula cuenta ejercicios distintos practicados, resueltos y acertados al primer intento desde la incorporación del seguimiento. El resumen semanal usa la hora de Lima. Los puntos anteriores se conservan.
 
 ```sh
 npm ci

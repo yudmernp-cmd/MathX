@@ -1,3 +1,4 @@
+import { assignments } from '../server/assignments.mjs'
 import {
   createHash,
   createHmac,
@@ -99,7 +100,8 @@ export default async function handler(req, res) {
   }
   try {
     const selection = ['practice', 'exam', 'drills'].includes(action)
-    const limit = selection || action === 'submit' ? 1024 * 1024 : 8192
+    const limit =
+      selection || action === 'submit' || action === 'task' ? 1024 * 1024 : 8192
     if (req.method === 'POST' && Number(req.headers['content-length']) > limit)
       return send(413, { error: 'Solicitud demasiado extensa.' })
     if (req.method === 'POST' && action === 'login') {
@@ -132,12 +134,22 @@ export default async function handler(req, res) {
       )
       return send(200, { authenticated: false })
     }
+    if (req.method === 'GET' && action === 'learning')
+      return send(200, await assignments(until.id, 'learning'))
+    if (req.method === 'POST' && action === 'task') {
+      const body = await read(req, limit)
+      return send(200, await assignments(until.id, body.action, body))
+    }
     if (req.method === 'GET' && action === 'boards')
       return send(200, await boards())
     if (req.method === 'POST' && ['enroll', 'toggle'].includes(action)) {
       if (!until.admin)
         return send(403, { error: 'Acceso exclusivo de administración.' })
       const data = await read(req)
+      if (action === 'toggle' && data.active === true)
+        return send(409, {
+          error: 'Publica una convocatoria desde Asignar actividad.',
+        })
       return send(
         200,
         action === 'enroll' ? await enroll(data) : await toggle(data.active),

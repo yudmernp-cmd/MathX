@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { request } from './request'
 type Row = { name: string; points: number }
-type Data = { exercises: Row[]; exams: Row[] | null }
+type Data = {
+  exercises: Row[]
+  exams: Row[] | null
+  examTitle?: string
+  legacy?: boolean
+}
 function Ranking({
   title,
   rows,
@@ -72,7 +77,7 @@ export function Boards({ admin }: { admin: boolean }) {
   }
   return (
     <div className="boards">
-      <h1>{admin ? 'Administración' : 'Clasificaciones'}</h1>
+      <h1>{admin ? 'Gestión del aula' : 'Clasificaciones'}</h1>
       {err && <p role="alert">{err}</p>}
       {admin && (
         <section className="panel">
@@ -123,47 +128,23 @@ export function Boards({ admin }: { admin: boolean }) {
           )}
         </section>
       )}
-      {admin && data && (
-        <section className="panel">
-          <h2>Convocatoria de simulacros</h2>
-          <p>
-            Cada activación abre una clasificación nueva. Al cerrarla se retiran
-            sus resultados.
-          </p>
-          <button
-            className="secondary"
-            disabled={busy}
-            onClick={() => {
-              if (
-                data.exams !== null &&
-                !window.confirm(
-                  '¿Cerrar esta convocatoria y retirar sus resultados?',
-                )
-              )
-                return
-              void action(async () => {
-                await request('toggle', { active: data.exams === null })
-              })
-            }}
-          >
-            {data.exams === null
-              ? 'Activar top de simulacros'
-              : 'Cerrar convocatoria'}
-          </button>
-        </section>
-      )}
       {data && (
         <>
           <Ranking
             title="Top de ejercicios"
             rows={data.exercises}
-            detail="Un punto por cada ejercicio distinto resuelto correctamente."
+            detail="Un punto por ejercicio distinto resuelto y hasta 20 por cada reto corregido."
           />
           {data.exams !== null && (
             <Ranking
               title="Top de simulacros"
               rows={data.exams}
-              detail="Mejor resultado de esta convocatoria en puntos verificados automáticamente."
+              detail={
+                data.legacy
+                  ? 'Convocatoria anterior · mejores resultados verificados.'
+                  : (data.examTitle ?? 'Convocatoria') +
+                    ' · notas publicadas por el profesor, sobre 80.'
+              }
             />
           )}
         </>

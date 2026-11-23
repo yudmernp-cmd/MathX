@@ -1,3 +1,4 @@
+import { MathKeys } from './MathKeys'
 import { request } from './request'
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
@@ -94,6 +95,15 @@ export function DrillWorkspace({
             onChange={(e) =>
               change({
                 answers: { ...run.answers, [id]: e.target.value },
+                drillChecked: { ...run.drillChecked, [id]: false },
+              })
+            }
+          />
+          <MathKeys
+            target="drill-answer"
+            change={(value) =>
+              change({
+                answers: { ...run.answers, [id]: value },
                 drillChecked: { ...run.drillChecked, [id]: false },
               })
             }

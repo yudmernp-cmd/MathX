@@ -1107,3 +1107,95 @@ textarea,
     transition: width 200ms ease-out;
   }
 }
+.math-keys {
+  margin: 0.5rem 0;
+}
+.math-keys > div,
+.task-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+}
+.math-keys button,
+.task-pages button {
+  min-width: 40px;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.3rem 0.6rem;
+  background: var(--tint);
+  color: var(--accent);
+}
+.task-pages [aria-pressed='true'] {
+  background: var(--accent);
+  color: #201528;
+}
+.task-work,
+.task-form {
+  display: grid;
+  gap: 1rem;
+  margin-block: 1rem;
+}
+.task-form label,
+.task-work label {
+  display: grid;
+  gap: 0.35rem;
+}
+.task-form input[type='checkbox'] {
+  width: auto;
+  justify-self: start;
+}
+.task-form textarea,
+.task-work textarea {
+  min-height: 5rem;
+}
+.task-row {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+  margin-top: 0.8rem;
+}
+.task-row h3 {
+  font-weight: 650;
+}
+.task-work .part {
+  display: grid;
+  gap: 0.55rem;
+}
+.task-work form {
+  display: grid;
+  gap: 0.8rem;
+}
+.task-work > button,
+.task-form > button {
+  justify-self: start;
+}
+.section-tabs {
+  flex-wrap: wrap;
+}
+.boards details {
+  margin-block: 0.7rem;
+}
+
+.activity-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border-left: 3px solid var(--accent);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+.activity-notice p {
+  margin: 0.25rem 0;
+}
+
+.classroom-alerts {
+  max-height: 12rem;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.classroom-alerts li {
+  padding-block: 0.28rem;
+}

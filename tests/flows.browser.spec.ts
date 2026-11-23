@@ -238,12 +238,14 @@ test('una clave incorrecta conserva cerrado el catálogo', async ({ page }) => {
   ).toBe(401)
 })
 
-test('el administrador inscribe y abre una convocatoria visible para la clase', async ({
+test('aula del profesor, reto supervisado, notas y convocatoria asignada', async ({
   page,
   browser,
 }, info) => {
   test.skip(
-    !!process.env.MATHX_TEST_URL || info.project.name === 'mobile',
+    !!process.env.MATHX_TEST_URL ||
+      (info.project.name === 'mobile' &&
+        !process.env.MATHX_TEST_MOBILE_TEACHER),
     'Usa exclusivamente el aula local de pruebas.',
   )
   await page.goto('/')
@@ -257,11 +259,21 @@ test('el administrador inscribe y abre una convocatoria visible para la clase', 
   await page.getByLabel('DNI', { exact: true }).fill(dni)
   await button(page, 'Crear código personal').click()
   const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
-  await button(page, 'Activar top de simulacros').click()
+  await page.getByLabel('Título', { exact: true }).fill('Reto de áreas')
+  await page
+    .getByLabel('Enunciado')
+    .fill('Halla el área de un círculo de radio 2.')
+  await page
+    .getByLabel('Solución para después del cierre')
+    .fill('El área es cuatro pi.')
+  await button(page, 'Publicar reto').click()
   await expect(
-    page.getByRole('heading', { name: 'Top de simulacros' }),
+    page.getByRole('heading', { name: 'Reto de áreas' }),
   ).toBeVisible()
-  const ctx = await browser.newContext({ baseURL: new URL(page.url()).origin }),
+  const ctx = await browser.newContext({
+      baseURL: new URL(page.url()).origin,
+      viewport: page.viewportSize(),
+    }),
     student = await ctx.newPage()
   try {
     await student.goto('/')
@@ -271,46 +283,136 @@ test('el administrador inscribe y abre una convocatoria visible para la clase', 
     await student.getByLabel('DNI', { exact: true }).fill(dni)
     await student.getByLabel('Código personal').fill(code)
     await button(student, 'Entrar al aula').click()
+    await button(student, 'Ver en Mi aula').click()
+    await button(student, 'Resolver reto').click()
+    await expect(
+      student.getByRole('heading', { name: 'Reto de áreas' }),
+    ).toBeVisible()
+    expect(await student.evaluate(() => !!document.fullscreenElement)).toBe(
+      true,
+    )
+    await student.evaluate(() => document.exitFullscreen())
+    // Chromium headless does not background tabs consistently. Exercise the browser visibility listener explicitly.
+    await student.evaluate(() => {
+      Object.defineProperty(document, 'hidden', {
+        configurable: true,
+        value: true,
+      })
+      document.dispatchEvent(new Event('visibilitychange'))
+      Reflect.deleteProperty(document, 'hidden')
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await student.getByLabel('Respuesta', { exact: true }).fill('4')
+    await student
+      .getByText('Símbolos matemáticos', { exact: true })
+      .first()
+      .click()
+    await button(student, 'π').click()
+    await expect(student.getByLabel('Respuesta', { exact: true })).toHaveValue(
+      '4π',
+    )
+    await student
+      .getByLabel('Procedimiento', { exact: true })
+      .fill('Área = πr²')
+    await expect(student.getByText(/Respuestas guardadas/)).toBeVisible()
+    await button(student, 'Volver al aula').click()
+    await button(student, 'Continuar').click()
+    await expect(student.getByLabel('Respuesta', { exact: true })).toHaveValue(
+      '4π',
+    )
+    student.once('dialog', (d) => d.accept())
+    await button(student, 'Entregar reto').click()
+    await expect(student.getByRole('status')).toContainText('Pendiente')
+    await button(page, 'Actualizar aula').click()
+    await expect(
+      page.getByText(/Salida de pantalla completa/).first(),
+    ).toBeVisible()
+    await expect(page.getByText(/Pestaña oculta/).first()).toBeVisible()
+    await button(page, 'Revisar entrega').click()
+    await expect(page.getByLabel('Procedimiento', { exact: true })).toHaveValue(
+      'Área = πr²',
+    )
+    for (const score of ['15', '17']) {
+      await page.getByLabel('Reto · puntos de 20').fill(score)
+      await button(page, 'Publicar nota').click()
+      await expect(page.getByRole('status')).toContainText(score + ' / 20')
+    }
+    await button(page, 'Volver al aula').click()
+    await button(student, 'Volver al aula').click()
+    await expect(student.getByText('Nota publicada · 17 puntos')).toBeVisible()
     await button(student, 'Clasificaciones').click()
     await expect(
-      student.getByRole('heading', { name: 'Top de simulacros' }),
-    ).toBeVisible()
-    const r = await student.request.post('/api/classroom?action=toggle', {
-      headers: { Origin: new URL(page.url()).origin },
-      data: { active: false },
-    })
-    expect(r.status()).toBe(403)
+      student
+        .getByRole('row')
+        .filter({ hasText: 'Estudiante del top' })
+        .getByRole('cell')
+        .last(),
+    ).toHaveText('17')
     if (existsSync('server-data/approved.sqlite')) {
-      await button(student, 'Práctica').click()
-      await button(student, 'Simulacros').click()
-      await button(student, 'Empezar simulacro').click()
-      await expect(student.locator('.timer')).toBeVisible()
-      expect(
-        (await saved(student)).questions.every((q) =>
-          q.parts.every((p) => p.value === null && !p.steps.length),
-        ),
-      ).toBe(true)
-      await student
-        .getByRole('button', { name: 'Finalizar simulacro', exact: true })
-        .first()
+      await page.getByLabel('Origen').selectOption('bank')
+      await page.getByLabel('Prueba asignada').selectOption('2')
+      await expect
+        .poll(() =>
+          page.getByLabel('Pregunta del banco').locator('option').count(),
+        )
+        .toBeGreaterThan(1)
+      await page.getByLabel('Pregunta del banco').selectOption({ index: 1 })
+      await page.getByText('Vista previa del reto').click()
+      await expect(
+        page.locator('.task-form details[open] .preserve-lines'),
+      ).toBeVisible()
+      await page
+        .getByRole('combobox', { name: 'Actividad', exact: true })
+        .selectOption('exam')
+      await page
+        .getByLabel('Título', { exact: true })
+        .fill('Convocatoria de prueba')
+      await page.getByLabel('Mostrar top de esta convocatoria').check()
+      await button(page, 'Publicar convocatoria').click()
+      await expect(
+        page.getByRole('heading', { name: 'Convocatoria de prueba' }),
+      ).toBeVisible()
+      await button(student, 'Mi aula').click()
+      await button(student, 'Resolver simulacro').click()
+      await expect(
+        student
+          .getByRole('navigation', { name: 'Preguntas del simulacro' })
+          .getByRole('button'),
+      ).toHaveCount(6)
+      await student.getByLabel('Respuesta', { exact: true }).first().fill('2')
+      student.once('dialog', (d) => d.accept())
+      await button(student, 'Entregar simulacro').click()
+      await expect(student.getByText('Informe por tema')).toBeVisible()
+      await button(page, 'Actualizar aula').click()
+      await page
+        .locator('article')
+        .filter({ hasText: 'Estudiante del top · Convocatoria de prueba' })
+        .getByRole('button', { name: 'Revisar entrega' })
         .click()
-      await button(student, 'Confirmar finalización').click()
-      await expect(student.locator('.result')).toContainText(
-        'Resultado registrado',
-      )
-      await expect(student.locator('.solution').first()).toBeVisible()
+      const marks = page.getByRole('spinbutton')
+      await expect(marks).toHaveCount(6)
+      for (const input of await marks.all()) await input.fill('1')
+      await button(page, 'Publicar nota').click()
+      await expect(page.getByRole('status')).toContainText('6 / 80')
+      await button(page, 'Volver al aula').click()
+      await button(student, 'Volver al aula').click()
       await button(student, 'Clasificaciones').click()
-      await expect(student.locator('.ranking').last()).toContainText(
-        'Estudiante del top',
-      )
+      await expect(
+        student
+          .locator('.ranking')
+          .last()
+          .getByRole('row')
+          .filter({ hasText: 'Estudiante del top' })
+          .getByRole('cell')
+          .last(),
+      ).toHaveText('6')
+      await button(page, 'Ocultar top').click()
+      await expect(button(page, 'Mostrar top')).toBeVisible()
+      await button(student, 'Actualizar clasificaciones').click()
+      await expect(
+        student.getByRole('heading', { name: 'Top de simulacros' }),
+      ).toHaveCount(0)
     }
-    page.once('dialog', (d) => d.accept())
-    await button(page, 'Cerrar convocatoria').click()
-    await expect(button(page, 'Activar top de simulacros')).toBeVisible()
-    await button(student, 'Actualizar clasificaciones').click()
-    await expect(
-      student.getByRole('heading', { name: 'Top de simulacros' }),
-    ).toHaveCount(0)
   } finally {
     await ctx.close()
   }

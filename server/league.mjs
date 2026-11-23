@@ -35,7 +35,7 @@ const fail = (status, message) => {
   throw new ClassroomError(status, message)
 }
 // Mutations are synchronous so retries recalculate from the winning revision.
-async function state(fn, write = false) {
+export async function state(fn, write = false) {
   if (!process.env.VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
     if (!process.env.MATHX_LEAGUE_DB)
       mkdirSync('.private', { recursive: true, mode: 0o700 })
@@ -165,18 +165,31 @@ export function boards() {
       entries.sort(
         (a, b) => b.points - a.points || a.name.localeCompare(b.name, 'es'),
       )
+    const exam = Object.values(s.assignments ?? {}).find(
+      (a) => a.kind === 'exam' && a.showTop && Date.now() >= a.opens,
+    )
     return {
+      ...(exam ? { examTitle: exam.title } : s.round ? { legacy: true } : {}),
       exercises: list(
         Object.values(s.students).map(({ name, points }) => ({ name, points })),
       ),
-      exams: s.round
+      exams: exam
         ? list(
-            Object.entries(s.round.best).map(([id, points]) => ({
-              name: s.students[id].name,
-              points,
-            })),
+            Object.entries(exam.attempts)
+              .filter(([, t]) => t.grade)
+              .map(([id, t]) => ({
+                name: s.students[id].name,
+                points: t.grade.points,
+              })),
           )
-        : null,
+        : s.round
+          ? list(
+              Object.entries(s.round.best).map(([id, points]) => ({
+                name: s.students[id].name,
+                points,
+              })),
+            )
+          : null,
     }
   })
 }
@@ -255,15 +268,37 @@ export async function submit(id, body) {
       typeof answer !== 'string'
     )
       fail(400, 'Ejercicio inválido.')
-    if (!acceptsDrill(drill, answer)) return { correct: false }
+    const right = acceptsDrill(drill, answer)
     const key = sign('exercise', [drill.instruccion, drill.expresion])
     return state((s) => {
       const p = s.students[id]
-      if (!p.seen[key]) {
+      p.activity = Date.now()
+      p.tried ??= {}
+      p.stats ??= {}
+      const group = drill.tema + ' · ' + drill.dificultad
+      const stat = (p.stats[group] ??= { tried: 0, first: 0, solved: 0 })
+      if (!p.tried[key]) {
+        p.tried[key] = 1
+        stat.tried++
+        const monday = new Date(p.activity - 5 * 3600000)
+        monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7))
+        const week = monday.toISOString().slice(0, 10)
+        p.weeks ??= {}
+        const levels = (p.weeks[week] ??= {})
+        const w = (levels[drill.dificultad] ??= { tried: 0, first: 0 })
+        w.tried++
+        if (right) w.first++
+        if (right) stat.first++
+      }
+      if (right && p.tried[key] === 1) {
+        stat.solved++
+        p.tried[key] = 2
+      }
+      if (right && !p.seen[key]) {
         p.seen[key] = 1
         p.points++
       }
-      return { correct: true }
+      return { correct: right }
     }, true)
   }
   if (!body.ticket || !body.answers || typeof body.answers !== 'object')
