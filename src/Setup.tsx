@@ -182,7 +182,11 @@ export function Setup({
               : '15 ejercicios · Sin límite de tiempo'}
           </div>
           <button disabled={busy} className="primary start" onClick={begin}>
-            {isExam ? 'Empezar simulacro' : 'Empezar práctica'}
+            {busy
+              ? 'Preparando…'
+              : isExam
+                ? 'Empezar simulacro'
+                : 'Empezar práctica'}
             <ArrowRight size={18} />
           </button>
         </aside>

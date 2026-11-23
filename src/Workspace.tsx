@@ -145,7 +145,7 @@ export function Workspace({ run, change, home, another }: Props) {
           </div>
           {q.theme && <p className="question-theme">{q.theme}</p>}
           <h2>{q.topic}</h2>
-          <p className="stem preserve-lines">
+          <p key={run.index} className="stem preserve-lines exam-stem">
             <MathText text={q.stem} />
           </p>
           {(q.origin === 'real' || q.origin === 'adapted') && q.provenance && (

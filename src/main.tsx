@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { CourseCover } from './CourseCover'
+import {
+  ArrowRight,
+  BookOpen,
+  ChartNoAxesColumnIncreasing,
+  LogOut,
+} from 'lucide-react'
 import { createRoot } from 'react-dom/client'
 import 'katex/dist/katex.min.css'
 import './style.css'
@@ -308,6 +315,7 @@ function App() {
       <header>
         <div className="shell header-row">
           <div className="brand">
+            <img src="/mathx.svg" width="32" height="32" alt="" />
             Math<span>X</span>
           </div>
           <span className="header-label">
@@ -319,7 +327,7 @@ function App() {
               onClick={() => auth(true)}
               disabled={busy}
             >
-              Salir del aula
+              <LogOut size={16} aria-hidden="true" /> Salir del aula
             </button>
           )}
         </div>
@@ -337,19 +345,20 @@ function App() {
             <Boards admin />
           ) : (
             <>
-              <nav className="actions">
+              <nav className="section-tabs" aria-label="Aula">
                 <button
                   className="secondary"
                   aria-pressed={!ranking}
                   onClick={() => setRanking(false)}
                 >
-                  Práctica
+                  <BookOpen size={16} aria-hidden="true" /> Práctica
                 </button>
                 <button
                   className="secondary"
                   aria-pressed={ranking}
                   onClick={() => setRanking(true)}
                 >
+                  <ChartNoAxesColumnIncreasing size={16} aria-hidden="true" />{' '}
                   Clasificaciones
                 </button>
               </nav>
@@ -372,66 +381,75 @@ function App() {
             </button>
           </section>
         ) : (
-          <form
-            className="panel login"
-            onSubmit={(e) => {
-              e.preventDefault()
-              auth(false)
-            }}
-          >
-            <h1>{adminForm ? 'Administración' : 'Acceso al aula'}</h1>
-            {!adminForm && (
-              <>
-                <label htmlFor="name">Nombre</label>
-                <input
-                  id="name"
-                  autoComplete="name"
-                  required
-                  maxLength={80}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-                <label htmlFor="dni">DNI</label>
-                <input
-                  id="dni"
-                  required
-                  inputMode="numeric"
-                  pattern="[0-9]{8}"
-                  maxLength={8}
-                  value={dni}
-                  onChange={(e) => setDni(e.target.value)}
-                />
-              </>
-            )}
-            <label htmlFor="class-key">
-              {adminForm ? 'Clave de administración' : 'Código personal'}
-            </label>
-            <input
-              id="class-key"
-              pattern={adminForm ? undefined : '[0-9]{6}'}
-              maxLength={adminForm ? 256 : 6}
-              inputMode={adminForm ? undefined : 'numeric'}
-              type="password"
-              value={password}
-              autoComplete="current-password"
-              required
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button className="primary" disabled={busy}>
-              Entrar al aula
-            </button>
-            <button
-              type="button"
-              className="back"
-              onClick={() => {
-                setAdminForm(!adminForm)
-                setPassword('')
-                setError('')
+          <div className="access-layout">
+            <CourseCover />
+            <form
+              className="panel login"
+              onSubmit={(e) => {
+                e.preventDefault()
+                auth(false)
               }}
             >
-              {adminForm ? 'Acceso de estudiantes' : 'Administración'}
-            </button>
-          </form>
+              <h1>{adminForm ? 'Administración' : 'Acceso al aula'}</h1>
+              {!adminForm && (
+                <>
+                  <label htmlFor="name">Nombre</label>
+                  <input
+                    id="name"
+                    placeholder="Nombre registrado"
+                    autoComplete="name"
+                    required
+                    maxLength={80}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                  <label htmlFor="dni">DNI</label>
+                  <input
+                    id="dni"
+                    placeholder="8 dígitos"
+                    required
+                    inputMode="numeric"
+                    pattern="[0-9]{8}"
+                    maxLength={8}
+                    value={dni}
+                    onChange={(e) => setDni(e.target.value)}
+                  />
+                </>
+              )}
+              <label htmlFor="class-key">
+                {adminForm ? 'Clave de administración' : 'Código personal'}
+              </label>
+              <input
+                id="class-key"
+                placeholder={
+                  adminForm ? 'Clave de administración' : '6 dígitos'
+                }
+                pattern={adminForm ? undefined : '[0-9]{6}'}
+                maxLength={adminForm ? 256 : 6}
+                inputMode={adminForm ? undefined : 'numeric'}
+                type="password"
+                value={password}
+                autoComplete="current-password"
+                required
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button className="primary" disabled={busy}>
+                {busy ? 'Entrando…' : 'Entrar al aula'}{' '}
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="back"
+                onClick={() => {
+                  setAdminForm(!adminForm)
+                  setPassword('')
+                  setError('')
+                }}
+              >
+                {adminForm ? 'Acceso de estudiantes' : 'Administración'}
+              </button>
+            </form>
+          </div>
         )}
       </main>
       <footer className="shell">

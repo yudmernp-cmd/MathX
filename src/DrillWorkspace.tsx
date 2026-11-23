@@ -50,7 +50,13 @@ export function DrillWorkspace({
           </div>
         </div>
       </section>
-      <section className="panel question">
+      <section className="panel question drill-card">
+        <progress
+          className="position-track"
+          aria-label="Posición en la tanda"
+          value={i + 1}
+          max={run.questions.length}
+        />
         <div className="qmeta">
           <span className="eyebrow">
             Ejercicio {i + 1} de {run.questions.length}
@@ -60,7 +66,7 @@ export function DrillWorkspace({
         <h2>
           <label htmlFor="drill-answer">{q.instruccion}</label>
         </h2>
-        <p className="stem drill-expression">
+        <p key={run.questions[i].id} className="stem drill-expression">
           <MathText text={expr} />
         </p>
         <form
