@@ -91,7 +91,7 @@ export default function Classroom({
     try {
       if (mode === 'Simulacro Pro') {
         const paper = await request<ProPaper>('pro-exam', { paper: config.paper })
-        setPro({ ...paper, owner, responses: {}, current: 0, finished: false })
+        setPro({ ...paper, owner, answers: '', finished: false })
         window.scrollTo(0, 0)
         return
       }
@@ -179,7 +179,7 @@ export default function Classroom({
         </p>
       )}
       {pro ? (
-        <ProExam attempt={pro} update={setPro} leave={home} onExpired={onExpired} />
+        <ProExam attempt={pro} update={setPro} leave={home} />
       ) : run ? (
         run.questions[0]?.drill ? (
           <DrillWorkspace
