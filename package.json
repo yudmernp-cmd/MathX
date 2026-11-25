@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "npm run bank:prepare && tsc --noEmit && vite build",
+    "build": "npm run pro:prepare && npm run bank:prepare && tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run && node --test tests/*.test.mjs",
     "test:e2e": "playwright test",
     "bank:prepare": "tsx tools/prepare.ts",
-    "predev": "npm run bank:prepare",
-    "bank:report": "node tools/availability.mjs"
+    "predev": "npm run bank:prepare && npm run pro:prepare",
+    "bank:report": "node tools/availability.mjs",
+    "pro:prepare": "python3 tools/pro_papers.py"
   },
   "engines": {
     "node": "24.x"

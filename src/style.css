@@ -1199,3 +1199,10 @@ textarea,
 .classroom-alerts li {
   padding-block: 0.28rem;
 }
+
+.pro-exam { display: grid; gap: 0.8rem; }
+.pro-exam iframe { width: 100%; height: 65vh; border: 1px solid var(--border); }
+.pro-exam textarea { width: 100%; }
+@media (min-width: 700px) {
+  .mode-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

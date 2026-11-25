@@ -40,6 +40,8 @@ function Select({
   )
 }
 
+export type SetupMode = Mode | 'Simulacro Pro'
+
 export function Setup({
   config,
   setConfig,
@@ -50,12 +52,12 @@ export function Setup({
 }: {
   config: Config
   setConfig: (c: Config) => void
-  mode: Mode
-  setMode: (m: Mode) => void
+  mode: SetupMode
+  setMode: (m: SetupMode) => void
   busy: boolean
   begin: () => void
 }) {
-  const isExam = mode === 'Simulacros'
+  const isExam = mode !== 'Ejercicios'
   const summary = [
     ['Asignatura', config.course + ' NM'],
     ...(isExam
@@ -79,7 +81,7 @@ export function Setup({
           <fieldset>
             <legend>Modalidad</legend>
             <div className="mode-options">
-              {(['Ejercicios', 'Simulacros'] as const).map((m) => {
+              {(['Ejercicios', 'Simulacros', 'Simulacro Pro'] as const).map((m) => {
                 const Icon = m === 'Ejercicios' ? NotebookPen : Files
                 return (
                   <button
@@ -169,7 +171,9 @@ export function Setup({
           </dl>
           {isExam && (
             <p className="exam-format">
-              {config.paper === 1
+              {mode === 'Simulacro Pro'
+                ? 'Un cuadernillo completo de una convocatoria anterior, seleccionado al azar.'
+                : config.paper === 1
                 ? '12 preguntas cortas. Seis originales y seis variantes de examen.'
                 : '6 problemas extensos. Tres originales y tres variantes de examen.'}
             </p>
@@ -183,7 +187,9 @@ export function Setup({
           <button disabled={busy} className="primary start" onClick={begin}>
             {busy
               ? 'Preparando…'
-              : isExam
+              : mode === 'Simulacro Pro'
+                ? 'Empezar Simulacro Pro'
+                : isExam
                 ? 'Empezar simulacro'
                 : 'Empezar práctica'}
             <ArrowRight size={18} />

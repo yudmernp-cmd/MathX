@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { storageKey, type Run } from '../src/math/session'
 
 const saved = (page: Page) =>
@@ -446,3 +447,36 @@ test('un estado de sesión lento permite entrar sin cerrar la sesión recién in
     release()
   }
 })
+
+for (const paper of [1, 2]) {
+  test('Simulacro Pro conserva el cuadernillo de Prueba ' + paper, async ({ page, request }) => {
+    test.skip(!!process.env.MATHX_TEST_URL, 'Usa el aula local de pruebas.')
+    await login(page)
+    await button(page, 'Simulacro Pro').click()
+    await button(page, 'Prueba ' + paper).click()
+    await button(page, 'Empezar Simulacro Pro').click()
+    await expect(page.getByRole('heading', { name: 'Simulacro Pro · Prueba ' + paper })).toBeVisible()
+    const link = page.getByRole('link', { name: 'Abrir cuadernillo en otra pestaña' })
+    const path = (await link.getAttribute('href'))!
+    const pdf = await page.request.get(path)
+    expect(pdf.status()).toBe(200)
+    expect(pdf.headers()['content-type']).toBe('application/pdf')
+    const bytes = await pdf.body()
+    expect(bytes.subarray(0, 5).toString()).toBe('%PDF-')
+    const catalog: { id: string; paper: number }[] =
+      JSON.parse(readFileSync('server-data/pro/catalog.json', 'utf8'))
+    const digest = createHash('sha256').update(bytes).digest('hex')
+    expect(catalog.find(row => row.id === digest)?.paper).toBe(paper)
+    expect((await request.get(path)).status()).toBe(401)
+    expect((await page.request.get(path.replace('signature=', 'signature=0'))).status()).toBe(403)
+    await page.getByLabel('Respuestas y procedimiento').fill('1a. 24')
+    await page.reload()
+    await expect(link).toHaveAttribute('href', path)
+    await expect(page.getByLabel('Respuestas y procedimiento')).toHaveValue('1a. 24')
+    page.once('dialog', dialog => dialog.accept())
+    await button(page, 'Finalizar simulacro').click()
+    await expect(page.getByText('Simulacro finalizado')).toBeVisible()
+    await button(page, 'Volver a la configuración').click()
+    await expect(page.getByRole('heading', { name: 'Configura tu práctica' })).toBeVisible()
+  })
+}

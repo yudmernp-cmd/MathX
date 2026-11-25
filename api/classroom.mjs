@@ -1,8 +1,7 @@
+import { readFile } from 'node:fs/promises'
+import { cookie, digest, mac, session, paperSignature } from '../server/session.mjs'
 import { assignments } from '../server/assignments.mjs'
 import {
-  createHash,
-  createHmac,
-  timingSafeEqual,
   randomBytes,
   randomInt,
 } from 'node:crypto'
@@ -20,36 +19,7 @@ import {
 import { drills, topics } from '../server/drills/index.mjs'
 import { bank } from '../server/bank.mjs'
 import { levels, themes, Unavailable } from '../server/hybrid.mjs'
-const cookie = '__Host-mathx',
-  lifetime = 8 * 60 * 60
-const digest = (s) => createHash('sha256').update(s).digest()
-const same = (a, b) => timingSafeEqual(digest(a), digest(b))
-function mac(s) {
-  return createHmac('sha256', process.env.MATHX_SESSION_SECRET)
-    .update(s)
-    .update('\0')
-    .update('identity-v1')
-    .digest('hex')
-}
-function session(req) {
-  const match = (req.headers.cookie || '')
-    .split(';')
-    .map((s) => s.trim())
-    .find((s) => s.startsWith(cookie + '='))
-    ?.slice(cookie.length + 1)
-  if (
-    !match ||
-    !/^\d{10,12}\.(?:admin|[a-f0-9]{64})\.[a-f0-9]{32}\.[a-f0-9]{64}$/.test(
-      match,
-    )
-  )
-    return 0
-  const [exp, id, nonce, sig] = match.split('.')
-  return Number(exp) > Date.now() / 1000 &&
-    same(mac([exp, id, nonce].join('.')), sig)
-    ? { expires: Number(exp) * 1000, id, admin: id === 'admin' }
-    : 0
-}
+const lifetime = 8 * 60 * 60
 async function read(req, limit = 8192) {
   if (req.body !== undefined)
     return typeof req.body === 'string' ? JSON.parse(req.body) : req.body
@@ -123,6 +93,19 @@ export default async function handler(req, res) {
       })
     }
     if (!until) return send(401, { error: 'Inicia sesión en el aula.' })
+    if (req.method === 'POST' && action === 'pro-exam') {
+      if (until.admin) return send(403, { error: 'Acceso exclusivo de estudiantes.' })
+      const { paper } = await read(req)
+      if (![1, 2].includes(paper)) return send(400, { error: 'Elige Prueba 1 o Prueba 2.' })
+      const catalog = JSON.parse(await readFile('server-data/pro/catalog.json', 'utf8'))
+      const choices = catalog.filter(entry => entry.paper === paper)
+      if (!choices.length) return send(503, { error: 'No hay cuadernillos disponibles para esta prueba.' })
+      const { id, title } = choices[randomInt(choices.length)]
+      return send(200, {
+        paper, title, id, signature: paperSignature(until.id, id),
+        deadline: Date.now() + 90 * 60000,
+      })
+    }
     if (req.method === 'POST' && action === 'logout') {
       res.setHeader(
         'Set-Cookie',

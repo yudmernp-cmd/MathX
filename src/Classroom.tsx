@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityNotice } from './Learning'
-import { Setup } from './Setup'
+import { Setup, type SetupMode } from './Setup'
+import { ProExam, proStorageKey, restorePro, type ProPaper, type ProAttempt } from './ProExam'
 import { DrillWorkspace } from './DrillWorkspace'
 import { drillRun, drillThemeName, type Drill } from './math/drills'
 import { themes } from './math/model'
 import { Workspace } from './Workspace'
-import { restore, storageKey, type Run, type Mode } from './math/session'
+import { restore, storageKey, type Run } from './math/session'
 import type { Config } from './math/model'
 import { withHistory, HistoryError } from './practiceHistory'
 
@@ -26,15 +27,16 @@ export default function Classroom({
       ? null
       : stored
   })
+  const [pro, setPro] = useState<ProAttempt | null>(() => restorePro(owner))
   const [config, setConfig] = useState<Config>({
     course: 'MAI',
-    paper: 1,
+    paper: pro?.paper ?? 1,
     difficulty: 'Medio',
     ...run?.config,
     theme: run?.config.theme ?? themes[0],
     drillLevel: run?.config.drillLevel ?? 3,
   })
-  const [mode, setMode] = useState<Mode>(run?.mode || 'Ejercicios')
+  const [mode, setMode] = useState<SetupMode>(pro ? 'Simulacro Pro' : run?.mode || 'Ejercicios')
   const [loading, setLoading] = useState(false),
     pending = useRef(false)
   const [error, setError] = useState(''),
@@ -63,6 +65,13 @@ export default function Classroom({
       setStorageFailed(true)
     }
   }, [run])
+  useEffect(() => {
+    if (!pro) return
+    try {
+      sessionStorage.setItem(proStorageKey, JSON.stringify(pro))
+      setStorageFailed(false)
+    } catch { setStorageFailed(true) }
+  }, [pro])
   const change = useCallback(
     (patch: Partial<Run>) =>
       setRun((r) =>
@@ -80,6 +89,12 @@ export default function Classroom({
     setLoading(true)
     setError('')
     try {
+      if (mode === 'Simulacro Pro') {
+        const paper = await request<ProPaper>('pro-exam', { paper: config.paper })
+        setPro({ ...paper, owner, answers: '', finished: false })
+        window.scrollTo(0, 0)
+        return
+      }
       const next = await withHistory(
         async (ticket) => {
           if (mode === 'Simulacros')
@@ -135,7 +150,9 @@ export default function Classroom({
   }, [run?.finished, run?.ticket, run?.sent, retry, change, report])
   function home() {
     setRun(null)
+    setPro(null)
     try {
+      sessionStorage.removeItem(proStorageKey)
       sessionStorage.removeItem(storageKey)
     } catch {}
     setError('')
@@ -155,13 +172,15 @@ export default function Classroom({
           )}
         </p>
       )}
-      {!run && <ActivityNotice open={openActivities} />}
+      {!run && !pro && <ActivityNotice open={openActivities} />}
       {storageFailed && (
         <p role="status">
           Mantén abierta esta página para conservar las respuestas.
         </p>
       )}
-      {run ? (
+      {pro ? (
+        <ProExam attempt={pro} update={setPro} leave={home} />
+      ) : run ? (
         run.questions[0]?.drill ? (
           <DrillWorkspace
             key={run.seed}

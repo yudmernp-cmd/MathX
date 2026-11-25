@@ -29,6 +29,12 @@ npm run preview
 
 La compilación prepara la reserva en SQLite y el sitio en `dist`. Vercel empaqueta `server-data/bank.sqlite` y el generador `server-data/exam-originals.cjs` con `api/classroom.mjs`. Configura las variables en el ámbito Production y vuelve a desplegar al cambiarlas. La sesión dura ocho horas y utiliza una cookie firmada, Secure, HttpOnly y SameSite=Strict. La página de acceso es pública. El catálogo, el contenido de los ejercicios y las imágenes requieren una sesión vigente. Las respuestas de una sesión abierta se conservan en la pestaña.
 
+## Simulacro Pro
+
+El alumno elige Prueba 1 o Prueba 2 y recibe un cuadernillo completo al azar de la carpeta de Drive del aula. Las copias idénticas cuentan una sola vez en el sorteo. La sesión dura 90 minutos y conserva el cuadernillo y las respuestas al recargar la misma pestaña. El resultado queda disponible para repaso personal, sin calificación automática.
+
+La compilación prepara los PDF privados con Python 3 y reutiliza la colección local verificada en `server-data/pro`. Para incorporar cambios de Drive, ejecuta `npm run pro:prepare -- --refresh` antes de compilar. El navegador recibe únicamente el documento asignado a la cuenta.
+
 ## Banco del aula
 
 ```sh

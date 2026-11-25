@@ -5,9 +5,10 @@ import tailwind from '@tailwindcss/vite'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
 const api: Connect.NextHandleFunction = async (req, res, next) => {
-  if (req.url?.split('?')[0] !== '/api/classroom') return next()
+  const route = req.url?.split('?')[0]
+  if (route !== '/api/classroom' && route !== '/api/pro-paper') return next()
   const { default: handler } = await import(
-    pathToFileURL(path.resolve('api/classroom.mjs')).href
+    pathToFileURL(path.resolve('.' + route + '.mjs')).href
   )
   await handler(req, res)
 }

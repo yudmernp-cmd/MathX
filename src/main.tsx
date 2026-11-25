@@ -19,7 +19,7 @@ const LearningPanel = lazy(() =>
 
 function clearSession() {
   try {
-    for (const k of [storageKey, 'mathx.session.1'])
+    for (const k of [storageKey, 'mathx.session.1', 'mathx.pro.1'])
       sessionStorage.removeItem(k)
   } catch {}
 }
