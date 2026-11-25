@@ -115,6 +115,24 @@ def template(parts):
     return TOKEN.sub(mask, text), protected
 
 
+def spanish_parts(parts):
+    # Rejoin literal numbers with their sentences without changing figure order.
+    result = []
+    for part in parts:
+        if isinstance(part, str) and result and isinstance(result[-1], str):
+            result[-1] += part
+        elif part:
+            result.append(part)
+    for i, part in enumerate(result):
+        if isinstance(part, str):
+            part = re.sub(r"\b(\d+)(?:st|nd|rd|th)\b", r"\1.º", part)
+            part = re.sub(r"\s+([,.;?!])", r"\1", part)
+            part = re.sub(r"\brelación común\b", "razón común", part)
+            part = part.replace("ocho machos en", "ocho corredores varones en")
+            result[i] = part
+    return result
+
+
 def translate(questions, engine):
     blocks = [b for q in questions for b in q["blocks"] if "source" in b]
     prepared = [template(b.pop("source")) for b in blocks]
@@ -140,7 +158,7 @@ def translate(questions, engine):
             parts.extend([text[cursor : m.start()], tokens[int(m[1]) - 101]])
             cursor = m.end()
         parts.append(text[cursor:])
-        block["parts"] = [p for p in parts if p]
+        block["parts"] = spanish_parts(parts)
 
 
 def main():

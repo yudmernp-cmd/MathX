@@ -12,7 +12,8 @@
     "bank:prepare": "tsx tools/prepare.ts",
     "predev": "npm run bank:prepare && npm run pro:prepare",
     "bank:report": "node tools/availability.mjs",
-    "pro:prepare": "python3 tools/prepare_pro.py"
+    "pro:prepare": "node tools/pro_delivery.mjs prepare",
+    "postbuild": "node tools/pro_recipient.mjs"
   },
   "engines": {
     "node": "24.x"
@@ -22,6 +23,7 @@
     "@vercel/blob": "^2.9.0",
     "d3-scale": "^4.0.3",
     "d3-shape": "^3.2.1",
+    "jose": "6.2.18",
     "katex": "^0.19.1",
     "lucide-react": "^1.76.0",
     "react": "^19.3.1",
