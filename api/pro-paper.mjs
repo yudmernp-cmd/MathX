@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { loadPaper } from '../server/pro-source.mjs'
 import { session, same, paperSignature } from '../server/session.mjs'
 
 export default async function handler(req, res) {
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       !same(params.get('signature') || '', paperSignature(identity.id, id)))
     return reject(403, 'Este cuadernillo no está asignado a tu cuenta.')
   try {
-    const pdf = await readFile('server-data/pro/' + id + '.pdf')
+    const pdf = await loadPaper(id)
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', 'inline; filename="MathX-Simulacro-Pro.pdf"')
     res.setHeader('Content-Length', pdf.length)
