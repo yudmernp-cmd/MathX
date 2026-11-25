@@ -71,6 +71,9 @@ export default async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost'),
     action = url.searchParams.get('action')
   if (req.method === 'GET' && action === 'status') {
+    const revision = process.env.VERCEL_GIT_COMMIT_SHA
+    if (revision && /^[0-9a-f]{40}$/.test(revision))
+      res.setHeader('X-MathX-Revision', revision.slice(0, 12))
     try {
       bank()
     } catch {

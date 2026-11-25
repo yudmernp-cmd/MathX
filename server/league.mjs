@@ -7,7 +7,9 @@ import {
   randomInt,
   randomUUID,
 } from 'node:crypto'
-import { get, put, BlobPreconditionFailedError } from '@vercel/blob'
+import {
+  get, head, put, BlobNotFoundError, BlobPreconditionFailedError,
+} from '@vercel/blob'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -89,26 +91,42 @@ export async function state(fn, write = false) {
 async function blobState(fn, write, signal) {
   const path = 'classroom/v1.json'
   for (let i = 0; i < blobAttempts; i++) {
+    if (i > 0)
+      await delay(randomInt(30, 100) * i, undefined, { signal })
     signal.throwIfAborted()
+    // Capture the storage revision BEFORE reading the body. If another instance
+    // writes between these calls, put must reject the old revision.
+    let metadata
+    if (write) {
+      try {
+        metadata = await head(path, { abortSignal: signal })
+      } catch (error) {
+        if (!(error instanceof BlobNotFoundError)) throw error
+      }
+    }
     const current = await get(path, {
       access: 'private',
       useCache: false,
       abortSignal: signal,
     })
+    if (write && !!metadata !== !!current) {
+      await current?.stream.cancel()
+      continue
+    }
     const s = current ? await new Response(current.stream).json() : initial()
     if (!write) return fn(s)
     const before = JSON.stringify(s)
     const result = fn(s)
     const after = JSON.stringify(s)
     if (before === after) return result
-    if (current && !current.blob.etag) throw new Error('Falta la revisión del aula')
+    if (metadata && !metadata.etag) throw new Error('Falta la revisión del aula')
     signal.throwIfAborted()
     try {
       await put(path, after, {
         access: 'private',
         addRandomSuffix: false,
         allowOverwrite: !!current,
-        ifMatch: current?.blob.etag,
+        ifMatch: metadata?.etag,
         contentType: 'application/json',
         abortSignal: signal,
       })
@@ -120,9 +138,8 @@ async function blobState(fn, write, signal) {
       )
         throw e
     }
-    if (i + 1 < blobAttempts)
-      await delay(randomInt(30, 100) * (i + 1), undefined, { signal })
   }
+  console.warn('MathX: se agotaron los intentos de escritura condicional en Blob')
   fail(503, 'El aula está ocupada. Vuelve a intentarlo.')
 }
 const nameKey = (name) =>
