@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { MathKeys } from './MathKeys'
 
 export type ProPaper = {
@@ -10,13 +10,14 @@ export type ProPaper = {
 }
 export type ProAttempt = ProPaper & {
   owner: string
-  responses: Record<number, string>
+  responses: Record<string, string>
   current: number
   legacyNotes?: string
   finished: boolean
 }
 type Figure = { image: string; width: number; height: number }
-type Question = { number: number; marks: number; blocks: (Figure | { parts: (string | Figure)[] })[] }
+type Block = (Figure | { parts: (string | Figure)[] }) & { answer?: string }
+type Question = { number: number; marks: number; blocks: Block[] }
 
 export const proStorageKey = 'mathx.pro.1'
 export function restorePro(owner: string): ProAttempt | null {
@@ -79,9 +80,22 @@ export function ProExam({ attempt, update, leave, onExpired }: {
     update({ ...attempt, current: index })
     requestAnimationFrame(() => heading.current?.focus())
   }
-  function answer(value: string) {
+  function answer(key: string, value: string) {
     if (!attempt.finished && Date.now() < attempt.deadline)
-      update({ ...attempt, responses: { ...attempt.responses, [question.number]: value } })
+      update({ ...attempt, responses: { ...attempt.responses, [key]: value } })
+  }
+  const hasParts = question?.blocks.some(b => b.answer && b.answer !== 'question')
+  function answerField(part: string) {
+    const whole = part === 'question'
+    const key = whole ? String(question.number) : question.number + ':' + part
+    const id = 'pro-answer-' + key
+    const label = whole ? 'pregunta ' + question.number : 'inciso ' + part.split('.').map(s => '(' + s + ')').join('')
+    return <div className="pro-answer">
+      <label htmlFor={id}>Respuesta y procedimiento · {label}</label>
+      <textarea id={id} rows={3} value={attempt.responses[key] ?? ''}
+        readOnly={closed} onChange={e => answer(key, e.target.value)} />
+      {!closed && <MathKeys target={id} change={value => answer(key, value)} />}
+    </div>
   }
   function figure(f: Figure, inline: boolean, key: number) {
     return <img key={key} className={inline ? 'pro-formula' : 'pro-figure'}
@@ -102,17 +116,21 @@ export function ProExam({ attempt, update, leave, onExpired }: {
           {questions.map((q, i) => <button key={q.number} aria-label={'Pregunta ' + q.number}
             aria-current={i === current ? 'step' : undefined} onClick={() => go(i)}>{q.number}</button>)}
         </nav>
-        <article className="pro-question">
+        <article className="pro-question" key={question.number}>
           <h2 ref={heading} tabIndex={-1}>Pregunta {question.number} de {questions.length}</h2>
           <p className="muted">{question.marks} puntos</p>
-          {question.blocks.map((block, i) => 'parts' in block
-            ? <p key={i}>{block.parts.map((part, j) => typeof part === 'string' ? part : figure(part, true, j))}</p>
-            : figure(block, false, i))}
+          {hasParts && attempt.responses[question.number] && <details>
+            <summary>Respuesta anterior para la pregunta completa</summary>
+            <p className="preserve-lines">{attempt.responses[question.number]}</p>
+          </details>}
+          {question.blocks.map((block, i) => <Fragment key={i}>
+            {'parts' in block
+              ? <p>{block.parts.map((part, j) => typeof part === 'string' ? part : figure(part, true, j))}</p>
+              : figure(block, false, i)}
+            {block.answer && answerField(block.answer)}
+          </Fragment>)}
+          {!question.blocks.some(block => block.answer) && answerField('question')}
         </article>
-        <label htmlFor="pro-answer">Respuesta y procedimiento de la pregunta {question.number}</label>
-        <textarea id="pro-answer" rows={5} value={attempt.responses[question.number] ?? ''}
-          readOnly={closed} onChange={e => answer(e.target.value)} />
-        {!closed && <MathKeys target="pro-answer" change={answer} />}
         <div className="pro-controls">
           <button className="secondary" disabled={current === 0} onClick={() => go(current - 1)}>Anterior</button>
           <button className="secondary" disabled={current === questions.length - 1}

@@ -27,6 +27,9 @@ function imageIds(questions) {
   }
   questions.forEach((q, index) => {
     if (q.number !== index + 1 || !q.blocks?.length) throw new Error('Pregunta incompleta.')
+    const answers = q.blocks.map(block => block.answer).filter(Boolean)
+    if (!answers.length || new Set(answers).size !== answers.length)
+      throw new Error('La pregunta necesita un identificador distinto para cada respuesta.')
     for (const block of q.blocks) {
       if (block.parts) block.parts.forEach(inspect)
       else inspect(block)

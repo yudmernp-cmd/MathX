@@ -132,6 +132,28 @@ def question_starts(doc):
     return starts
 
 
+def answer_positions(blocks):
+    """Place a field at each leaf prompt, before the context for the next part."""
+    starts = [(i, b.pop("start")) for i, b in enumerate(blocks) if "start" in b]
+    scored = {i for i, b in enumerate(blocks) if b.pop("scored", False)}
+    if not starts:
+        blocks[-1]["answer"] = "question"
+        return
+    parent = None
+    for n, (first, (letter, roman)) in enumerate(starts):
+        end, following = starts[n + 1] if n + 1 < len(starts) else (len(blocks), None)
+        if letter:
+            parent = letter
+        if not roman and following and following[0] is None:
+            # The parent introduces a list, e.g. "(b) Find ... (i) ... (ii) ...".
+            continue
+        label = ".".join(x for x in (parent, roman) if x)
+        last = next((i for i in range(first, end) if i in scored), end - 1)
+        while last + 1 < end and "image" in blocks[last + 1]:
+            last += 1
+        blocks[last]["answer"] = label
+
+
 def extract_paper(path, directory):
     questions = []
     with pdf.open(path) as doc:
@@ -221,11 +243,15 @@ def extract_paper(path, directory):
                         gap(cursor, rect.y0)
                         cursor = max(cursor, rect.y1)
                         continue
-                    subpart = re.match(r"^\([a-zivx]+\)", txt)
+                    subpart = None
+                    if rect.x0 < 105:
+                        subpart = re.match(
+                            r"^\(\s*([a-z]|i{2,3}|iv)\s*\)(?:\s*\(\s*(i{1,3}|iv)\s*\))?", txt
+                        )
                     if (
                         (rect.y0 < cursor - 3 and not subpart)
                         or rect.x0 > 146
-                        or not re.search("[A-Za-z]{2,}", txt)
+                        or (not subpart and not re.search("[A-Za-z]{2,}", txt))
                     ):
                         continue
                     if not subpart and any(
@@ -238,7 +264,7 @@ def extract_paper(path, directory):
                         for v in visuals
                     ):
                         continue
-                    if not any(
+                    if not subpart and not any(
                         "Arial" in s["font"] and re.search("[A-Za-z]{2,}", s["text"])
                         for l in block["lines"]
                         for s in l["spans"]
@@ -260,11 +286,18 @@ def extract_paper(path, directory):
                             "lines": block["lines"]
                             + [line for b in extra for line in b["lines"]]
                         }
-                    blocks.append({"source": prose_parts(page, block, directory)})
+                    paragraph = {"source": prose_parts(page, block, directory)}
+                    if subpart:
+                        paragraph["start"] = ((subpart[1], subpart[2]) if rect.x0 < 90
+                                              else (None, subpart[1]))
+                    if extra or re.search(r"\[\d+\]\s*$", txt):
+                        paragraph["scored"] = True
+                    blocks.append(paragraph)
                     cursor = max(cursor, rect.y1)
                 gap(cursor, hi)
             if not marks or not any("source" in b for b in blocks):
                 raise ValueError(f"{path.name}: pregunta {index + 1} incompleta")
+            answer_positions(blocks)
             questions.append({"number": index + 1, "marks": marks, "blocks": blocks})
     if sum(q["marks"] for q in questions) != 80:
         raise ValueError("Puntuación incompleta: " + path.name)

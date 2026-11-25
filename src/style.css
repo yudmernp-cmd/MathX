@@ -1218,6 +1218,8 @@ textarea,
 .pro-exam { min-width: 0; }
 .pro-exam > button { justify-self: start; }
 .pro-exam textarea { width: 100%; }
+.pro-answer { margin: .75rem 0 1.5rem; }
+.pro-answer label { display: block; margin-bottom: .35rem; color: var(--muted); font-size: .875rem; font-weight: 600; }
 @media (min-width: 700px) {
   .mode-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
