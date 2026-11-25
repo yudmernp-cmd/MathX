@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
+import { bank } from '../server/bank.mjs'
 import { assignments } from '../server/assignments.mjs'
 import {
   enroll,
@@ -276,4 +277,63 @@ test('un corte de red y el vencimiento del plazo se reconocen aunque el alumno c
     (await teacher('grade', { task, student: user, scores: [20] })).points,
     20,
   )
+})
+
+test('editar y eliminar actividades conserva la versión de cada entrega y ajusta los puntos', async t => {
+  const { state } = await import('../server/league.mjs')
+  const user = await student('Participante anterior'), later = await student('Participante posterior')
+  const spec = {kind:'challenge', title:'Edición de reto', date:day(Date.now()+7*86400000), stem:'Modelo A', solution:'Solución A'}
+  const {id:task} = await teacher('publish', spec)
+  // Simulate an existing attempt on a legacy assignment whose dates were later rescheduled.
+  await state(s => { s.assignments[task].attempts[user] = {
+    started:Date.now(), last:Date.now(), deadline:Date.now()+60000, revision:0, answers:{}, notes:{}, events:[]
+  } }, true)
+  const def = await teacher('definition', {task})
+  for (const action of ['definition','edit','delete'])
+    await assert.rejects(assignments(user, action, {...spec, task, editVersion:def.editVersion}), {status:403})
+  const edit = { ...spec, task, editVersion:def.editVersion, stem:'Modelo B', solution:'Solución B' }
+  await teacher('edit', edit)
+  await assert.rejects(teacher('edit', edit), {status:409})
+  assert.equal((await teacher('definition',{task})).question.stem,'Modelo B')
+  assert.equal((await assignments(user,'beginTask',{task})).questions[0].stem,'Modelo A')
+  await assignments(user,'sendTask',{task, revision:0, answers:{'0-0':'A'}, notes:{}})
+  await teacher('grade',{task,student:user,scores:[9]})
+  assert.equal((await teacher('inspect',{task,student:user})).questions[0].parts[0].steps[0], 'Solución A')
+  assert.equal((await assignments(user,'learning')).profile.points,9)
+  await assert.rejects(assignments(later,'beginTask',{task}), {status:409})
+  await assert.rejects(teacher('delete',{task,editVersion:def.editVersion}), {status:409})
+  await teacher('delete',{task,editVersion:(await teacher('definition',{task})).editVersion})
+  assert.equal((await assignments(user,'learning')).profile.points,0)
+  assert.ok(!(await teacher('learning')).reviews.some(r=>r.task===task))
+  await assert.rejects(assignments(user,'myTask',{task}), {status:404})
+
+  const now = Date.now()
+  const exam = 'convocatoria-anterior'
+  await state(s => { s.assignments[exam] = { id:exam, kind:'exam', title:'Simulacro', opens:now-5000,
+    closes:now+3600000, paper:1, minutes:30, attempts:{}, questions:[def.question] } }, true)
+  const original = await assignments(user,'beginTask',{task:exam})
+  await teacher('edit',{task:exam,editVersion:0,kind:'exam',title:'Nueva convocatoria',opens:now-5000,
+    closes:now+7200000, paper:1, minutes:60, showTop:true})
+  const retained = await assignments(user,'myTask',{task:exam})
+  assert.equal(retained.deadline, original.deadline)
+  assert.equal(retained.minutes,30)
+  assert.equal((await assignments(later,'beginTask',{task:exam})).minutes,60)
+  const generator = t.mock.method(bank(), 'questions', () => [
+    { ...def.question, stem:'Versión nueva' }, { ...def.question, stem:'Segundo ejercicio' }
+  ])
+  const changed = {task:exam, editVersion:1, kind:'exam', title:'Prueba 2', opens:now-5000,
+    closes:now+7200000, paper:2, minutes:60}
+  await teacher('edit', changed)
+  assert.equal(generator.mock.calls[0].arguments[0].paper, 2)
+  const newcomer = await student('Nueva participante de P2')
+  const newPaper = await assignments(newcomer,'beginTask',{task:exam})
+  assert.equal(newPaper.paper,2)
+  assert.equal(newPaper.questions.length,2)
+  assert.equal((await assignments(user,'myTask',{task:exam})).paper, 1)
+  await assignments(user,'sendTask',{task:exam,revision:0,answers:{},notes:{}})
+  await teacher('grade',{task:exam,student:user,scores:[10]})
+  await teacher('edit', {...changed, editVersion:2, replaceQuestions:true})
+  assert.equal(generator.mock.callCount(),2)
+  await teacher('delete',{task:exam,editVersion:3})
+  assert.ok(!(await teacher('learning')).tasks.some(t=>t.id===exam))
 })

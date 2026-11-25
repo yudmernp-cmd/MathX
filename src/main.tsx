@@ -121,7 +121,7 @@ function App() {
       <header>
         <div className="shell header-row">
           <div className="brand">
-            <img src="/mathx.svg" width="32" height="32" alt="" />
+            <img src="/mathx-cat.png" width="32" height="32" alt="" />
             Math<span>X</span>
           </div>
           <span className="header-label">

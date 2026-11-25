@@ -146,17 +146,24 @@ export function ActivityNotice({ open }: { open: () => void }) {
     </aside>
   )
 }
-function Publisher({ done }: { done: () => void }) {
-  const [kind, setKind] = useState('challenge'),
-    [mode, setMode] = useState('own'),
-    [paper, setPaper] = useState(1),
+type Definition = Task & { question?: Problem; editVersion: number }
+const limaInput = (t: number) => new Date(t - 18000000).toISOString().slice(0, 16)
+function Publisher({ done, editing, cancel }: { done: () => void; editing: Definition | null; cancel: () => void }) {
+  const current = editing?.question
+  const own = current?.parts.length === 1 && current.parts[0].ask === 'Respuesta y procedimiento' && !current.provenance
+  function timeValue(value: FormDataEntryValue | null, initial?: number) {
+    return initial !== undefined && value === limaInput(initial) ? initial : Date.parse(value + ':00-05:00')
+  }
+  const [kind, setKind] = useState<string>(editing?.kind ?? 'challenge'),
+    [mode, setMode] = useState(current && !own ? 'keep' : 'own'),
+    [paper, setPaper] = useState(editing?.paper ?? 1),
     [sources, setSources] = useState<Source[]>([]),
     [source, setSource] = useState(''),
     [preview, setPreview] = useState<Problem | null>(null),
     [msg, setMsg] = useState(''),
     [busy, setBusy] = useState(false),
-    [stem, setStem] = useState(''),
-    [title, setTitle] = useState('')
+    [stem, setStem] = useState(own ? current.stem : ''),
+    [title, setTitle] = useState(editing?.title ?? '')
   useEffect(() => {
     if (mode !== 'bank' || kind !== 'challenge') return
     let active = true
@@ -186,6 +193,7 @@ function Publisher({ done }: { done: () => void }) {
       active = false
     }
   }, [source, mode])
+  const displayed = mode === 'keep' ? current : preview
   return (
     <form
       className="panel task-form"
@@ -195,14 +203,18 @@ function Publisher({ done }: { done: () => void }) {
         setMsg('')
         const f = new FormData(e.currentTarget)
         try {
-          await task('publish', {
+          await task(editing ? 'edit' : 'publish', {
+            task: editing?.id,
+            editVersion: editing?.editVersion,
+            keepQuestions: mode === 'keep',
+            replaceQuestions: f.has('replaceQuestions'),
             kind,
             title,
             paper,
             minutes: Number(f.get('minutes')),
             date: f.get('date'),
-            opens: Date.parse(f.get('opens') + ':00-05:00'),
-            closes: Date.parse(f.get('closes') + ':00-05:00'),
+            opens: timeValue(f.get('opens'), editing?.opens),
+            closes: timeValue(f.get('closes'), editing?.closes),
             showTop: f.has('showTop'),
             stem,
             solution: f.get('solution') ?? '',
@@ -217,10 +229,12 @@ function Publisher({ done }: { done: () => void }) {
         }
       }}
     >
-      <h2>Asignar actividad</h2>
+      <h2>{editing ? 'Editar actividad' : 'Asignar actividad'}</h2>
+      {editing && <p>Los cambios de preguntas y duración se aplican a quienes empiecen después de guardar. Adelantar el cierre también acorta el plazo de los intentos abiertos.</p>}
       <label>
         Actividad
         <select
+          disabled={!!editing}
           value={kind}
           onChange={(e) => {
             setKind(e.target.value)
@@ -235,6 +249,7 @@ function Publisher({ done }: { done: () => void }) {
         Título
         <input
           required
+          autoFocus={!!editing}
           maxLength={100}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -248,13 +263,14 @@ function Publisher({ done }: { done: () => void }) {
               type="date"
               required
               name="date"
-              min={limaDate()}
-              defaultValue={limaDate()}
+              min={editing ? undefined : limaDate()}
+              defaultValue={limaDate(editing?.opens)}
             />
           </label>
           <label>
             Origen
             <select value={mode} onChange={(e) => setMode(e.target.value)}>
+              {current && !own && <option value="keep">Pregunta actual</option>}
               <option value="own">Pregunta propia</option>
               <option value="bank">Banco autorizado de exámenes</option>
             </select>
@@ -272,7 +288,7 @@ function Publisher({ done }: { done: () => void }) {
               </label>
               <label>
                 Solución para después del cierre
-                <textarea name="solution" maxLength={6000} />
+                <textarea name="solution" maxLength={6000} defaultValue={own ? current.parts[0].steps.join('\n') : ''} />
               </label>
             </>
           ) : null}
@@ -312,23 +328,23 @@ function Publisher({ done }: { done: () => void }) {
           </select>
         </label>
       )}
-      {kind === 'challenge' && (mode === 'own' ? stem : preview) && (
+      {kind === 'challenge' && (mode === 'own' ? stem : displayed) && (
         <details>
           <summary>Vista previa del reto</summary>
           <h3>{title}</h3>
           {mode === 'own' ? (
             <MathText text={stem} />
           ) : (
-            preview && (
+            displayed && (
               <>
-                <Prompt q={preview} />
-                {preview.parts.map((p, i) => (
+                <Prompt q={displayed} />
+                {displayed.parts.map((p, i) => (
                   <div key={i}>
                     <MathText text={p.ask} />
                     {p.figure && <DataFigure data={p.figure} />}
                   </div>
                 ))}
-                {preview.assets?.map((a) => (
+                {displayed.assets?.map((a) => (
                   <img
                     className="exam-image"
                     key={a.id}
@@ -349,9 +365,7 @@ function Publisher({ done }: { done: () => void }) {
               type="datetime-local"
               required
               name="opens"
-              defaultValue={new Date(Date.now() - 18000000)
-                .toISOString()
-                .slice(0, 16)}
+              defaultValue={limaInput(editing?.opens ?? Date.now())}
             />
           </label>
           <label>
@@ -360,9 +374,7 @@ function Publisher({ done }: { done: () => void }) {
               type="datetime-local"
               required
               name="closes"
-              defaultValue={new Date(Date.now() - 18000000 + 86400000)
-                .toISOString()
-                .slice(0, 16)}
+              defaultValue={limaInput(editing?.closes ?? Date.now() + 86400000)}
             />
           </label>
           <label>
@@ -372,19 +384,21 @@ function Publisher({ done }: { done: () => void }) {
               type="number"
               min={1}
               max={240}
-              defaultValue={90}
+              defaultValue={editing?.minutes ?? 90}
               name="minutes"
             />
           </label>
           <label>
-            <input type="checkbox" name="showTop" /> Mostrar top de esta
+            <input type="checkbox" name="showTop" defaultChecked={editing?.showTop} /> Mostrar top de esta
             convocatoria
           </label>
         </>
       )}
+      {editing?.kind === 'exam' && <label><input type="checkbox" name="replaceQuestions" /> Sortear otras preguntas para esta convocatoria</label>}
       <button className="primary" disabled={busy}>
-        Publicar {kind === 'challenge' ? 'reto' : 'convocatoria'}
+        {editing ? 'Guardar cambios' : kind === 'challenge' ? 'Publicar reto' : 'Publicar convocatoria'}
       </button>
+      {editing && <button className="secondary" type="button" disabled={busy} onClick={cancel}>Cancelar edición</button>}
       {msg && <p role="status">{msg}</p>}
     </form>
   )
@@ -401,6 +415,8 @@ export function LearningPanel({
     [attempt, setAttempt] = useState<Attempt | null>(null),
     [review, setReview] = useState<Review>(),
     [pending, setPending] = useState(false)
+  const [editing, setEditing] = useState<Definition | null>(null)
+  const [notice, setNotice] = useState('')
   const version = useRef(0)
   async function load() {
     const n = ++version.current
@@ -444,6 +460,21 @@ export function LearningPanel({
     } finally {
       setPending(false)
     }
+  }
+  async function changeActivity(t: Task, action: 'definition' | 'delete') {
+    if (action === 'delete' && !confirm('¿Eliminar «' + t.title + '» junto con sus entregas, notas y puntos asociados?')) return
+    setPending(true)
+    setNotice('')
+    try {
+      if (action === 'definition') setEditing(await task<Definition>(action, { task: t.id }))
+      else {
+        await task(action, { task: t.id, editVersion: t.editVersion })
+        if (editing?.id === t.id) setEditing(null)
+        setNotice('Actividad eliminada.')
+        await load()
+      }
+    } catch (e) { setError((e as Error).message) }
+    finally { setPending(false) }
   }
   async function manage(t: Task, change: object) {
     setPending(true)
@@ -495,7 +526,11 @@ export function LearningPanel({
           {!data.alerts?.length && <p>Sin incidencias registradas.</p>}
         </section>
       )}
-      {admin && <Publisher done={load} />}
+      {admin && <Publisher key={editing ? editing.id + ':' + editing.editVersion : 'new'} editing={editing} cancel={() => setEditing(null)} done={() => {
+        if (editing) { setEditing(null); setNotice('Cambios guardados.') }
+        void load()
+      }} />}
+      {notice && <p role="status">{notice}</p>}
       {admin && data?.legacyRound && (
         <button
           className="secondary"
@@ -543,6 +578,8 @@ export function LearningPanel({
                 </p>
                 {admin ? (
                   <div className="actions">
+                    <button disabled={pending} className="secondary" onClick={() => changeActivity(t, 'definition')}>Editar</button>
+                    <button disabled={pending} className="secondary" onClick={() => changeActivity(t, 'delete')}>Eliminar</button>
                     {t.kind === 'exam' && (
                       <button
                         disabled={pending}

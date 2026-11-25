@@ -12,6 +12,8 @@ En Administración, inscribe a cada estudiante con su nombre y entrégale el có
 
 En **Administración → Asignar actividad**, el profesor puede escribir un reto con una solución opcional o seleccionar una pregunta del banco privado de Prueba 1 o 2. Se admite un reto diario avanzado por fecha de Lima. Para convocar un simulacro común de 80 puntos, elige la prueba, las fechas de apertura y cierre y la duración (90 minutos por defecto). El top de esa convocatoria se puede mostrar u ocultar.
 
+En **Actividades asignadas**, el profesor puede editar el título, la programación y las preguntas, cambiar la prueba de una convocatoria o volver a sortear sus preguntas. Los alumnos que ya empezaron conservan su versión y su tiempo asignado, con el límite del cierre vigente. Eliminar una actividad retira sus entregas y notas y descuenta los puntos que ese reto aportó al top de ejercicios.
+
 El estudiante abre la actividad desde **Mi aula**. El servidor conserva respuestas y procedimientos confirmados y recoge el último borrador guardado al vencer el plazo. Las notas se publican en **Entregas para revisar**. El profesor puntúa el reto sobre 20 y el simulacro por pregunta sobre un total de 80. El alumno puede consultar su entrega, las observaciones y el desglose del simulacro. Las soluciones de referencia se habilitan después del cierre para toda la clase.
 
 Al abrir un reto se solicita pantalla completa. **Avisos del reto** muestra los eventos de visibilidad y pantalla completa que comunica el navegador. Se comprueba la conexión cada 45 segundos y el panel muestra interrupción tras más de 90 segundos sin señal durante un intento activo. Un corte abrupto puede impedir el envío del último evento. Los avisos no modifican las notas.

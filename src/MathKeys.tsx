@@ -54,9 +54,10 @@ export function MathKeys({
         : left + (right ? chosen : '') + right
     const next = el.value.slice(0, start) + value + el.value.slice(end)
     if (el.maxLength >= 0 && next.length > el.maxLength) return
+    el.focus({ preventScroll: true })
     change(next)
     requestAnimationFrame(() => {
-      el.focus({ preventScroll: true })
+      if (document.activeElement !== el) return
       const pos = right
         ? start +
           left.length +

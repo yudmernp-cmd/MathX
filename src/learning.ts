@@ -15,6 +15,7 @@ export type Task = {
   paper?: number
   minutes?: number
   showTop?: boolean
+  editVersion?: number
   started?: boolean
   submitted?: boolean
   grade?: Grade

@@ -560,3 +560,33 @@ test('el administrador gestiona el acceso y el avance de un alumno desde Usuario
     expect((await login(next)).status()).toBe(401)
   } finally { await ctx.close() }
 })
+
+test('el profesor edita y elimina un reto desde la lista de actividades', async ({page}, info) => {
+  test.skip(!!process.env.MATHX_TEST_URL, 'Usa exclusivamente el aula local.')
+  const offset = info.project.name === 'mobile' ? 16 : 17
+  const date = new Date(Date.now()+offset*86400000).toISOString().slice(0,10)
+  await page.goto('/')
+  await expect(page.locator('.brand img')).toHaveAttribute('src','/mathx-cat.png')
+  expect(await page.locator('.brand img').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBe(180)
+  await button(page,'Administración').click()
+  await page.getByLabel('Clave de administración').fill(process.env.MATHX_ADMIN_PASSWORD!)
+  await button(page,'Entrar al aula').click()
+  const title = 'Edición de prueba ' + info.project.name
+  await page.getByLabel('Título', {exact:true}).fill(title)
+  await page.getByLabel('Día del reto (Lima)').fill(date)
+  await page.getByLabel('Enunciado').fill('Calcula el doble de cuatro.')
+  await button(page,'Publicar reto').click()
+  const row = page.locator('article').filter({has:page.getByRole('heading',{name:title,exact:true})})
+  await row.getByRole('button',{name:'Editar'}).click()
+  await expect(page.getByLabel('Enunciado')).toHaveValue('Calcula el doble de cuatro.')
+  await page.getByLabel('Título',{exact:true}).fill(title+' actualizado')
+  await page.getByLabel('Enunciado').fill('Calcula el triple de cuatro.')
+  await button(page,'Guardar cambios').click()
+  const updated = page.locator('article').filter({has:page.getByRole('heading',{name:title+' actualizado',exact:true})})
+  page.once('dialog', d=>d.dismiss())
+  await updated.getByRole('button',{name:'Eliminar'}).click()
+  await expect(updated).toBeVisible()
+  page.once('dialog', d=>d.accept())
+  await updated.getByRole('button',{name:'Eliminar'}).click()
+  await expect(updated).toHaveCount(0)
+})
