@@ -11,9 +11,13 @@ import { get, put, BlobPreconditionFailedError } from '@vercel/blob'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { setTimeout as delay } from 'node:timers/promises'
 const require = createRequire(import.meta.url)
 const initial = () => ({ students: {}, round: null })
 let db
+let blobWrites = Promise.resolve()
+const blobAttempts = 6
+const blobTimeout = 8000
 const sign = (domain, value) =>
   createHmac('sha256', process.env.MATHX_SESSION_SECRET)
     .update(JSON.stringify([domain, value]))
@@ -60,20 +64,53 @@ export async function state(fn, write = false) {
       throw e
     }
   }
+  const controller = new AbortController()
+  const { signal } = controller
+  let timer
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new ClassroomError(
+        503,
+        'El almacenamiento del aula tardó demasiado en responder. Vuelve a intentarlo.',
+      ))
+      controller.abort()
+    }, blobTimeout)
+  })
+  const run = () => blobState(fn, write, signal)
+  // The queue prevents races in this instance. The ETag guards other instances.
+  const work = write ? blobWrites.then(run) : run()
+  if (write) blobWrites = work.catch(() => {})
+  try {
+    return await Promise.race([work, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+async function blobState(fn, write, signal) {
   const path = 'classroom/v1.json'
-  for (let i = 0; i < 12; i++) {
-    const current = await get(path, { access: 'private', useCache: false })
-    const s = current ? await new Response(current.stream).json() : initial(),
-      before = JSON.stringify(s),
-      result = fn(s)
-    if (!write || before === JSON.stringify(s)) return result
+  for (let i = 0; i < blobAttempts; i++) {
+    signal.throwIfAborted()
+    const current = await get(path, {
+      access: 'private',
+      useCache: false,
+      abortSignal: signal,
+    })
+    const s = current ? await new Response(current.stream).json() : initial()
+    if (!write) return fn(s)
+    const before = JSON.stringify(s)
+    const result = fn(s)
+    const after = JSON.stringify(s)
+    if (before === after) return result
+    if (current && !current.blob.etag) throw new Error('Falta la revisión del aula')
+    signal.throwIfAborted()
     try {
-      await put(path, JSON.stringify(s), {
+      await put(path, after, {
         access: 'private',
         addRandomSuffix: false,
         allowOverwrite: !!current,
         ifMatch: current?.blob.etag,
         contentType: 'application/json',
+        abortSignal: signal,
       })
       return result
     } catch (e) {
@@ -83,7 +120,8 @@ export async function state(fn, write = false) {
       )
         throw e
     }
-    await new Promise((r) => setTimeout(r, randomInt(25, 120) * (i + 1)))
+    if (i + 1 < blobAttempts)
+      await delay(randomInt(30, 100) * (i + 1), undefined, { signal })
   }
   fail(503, 'El aula está ocupada. Vuelve a intentarlo.')
 }

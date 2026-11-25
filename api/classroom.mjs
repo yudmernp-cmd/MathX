@@ -276,6 +276,6 @@ export default async function handler(req, res) {
     if (e instanceof SyntaxError || e?.message === 'body')
       return send(400, { error: 'Datos de solicitud inválidos.' })
     console.error('Error de aula', e?.code || e?.name)
-    return send(503, { error: 'No se pudo consultar el banco del aula.' })
+    return send(503, { error: 'No se pudo completar la operación del aula.' })
   }
 }
