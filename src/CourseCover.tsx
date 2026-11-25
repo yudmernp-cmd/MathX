@@ -35,14 +35,19 @@ function FunctionPlot() {
         ctx.lineTo(x2, y2)
         ctx.stroke()
       }
+      const palette = getComputedStyle(canvas)
+      const grid = palette.getPropertyValue('--border').trim()
+      const axis = palette.getPropertyValue('--control-border').trim()
+      const accent = palette.getPropertyValue('--accent').trim()
+      const muted = palette.getPropertyValue('--muted').trim()
       const divisions = width < 160 ? 4 : 16
       for (let i = 0; i <= divisions; i++)
-        line(x(i / divisions), 4, x(i / divisions), height - 22, '#322a41')
+        line(x(i / divisions), 4, x(i / divisions), height - 22, grid)
       for (const v of [-1, -0.5, 0, 0.5, 1])
-        line(left, y(v), right, y(v), v === 0 ? '#7a6b90' : '#322a41')
+        line(left, y(v), right, y(v), v === 0 ? axis : grid)
       for (const [fn, color] of [
-        [Math.sin, '#bd94ff'],
-        [Math.cos, '#8d809f'],
+        [Math.sin, accent],
+        [Math.cos, muted],
       ] as const) {
         ctx.beginPath()
         ctx.strokeStyle = color
@@ -57,7 +62,7 @@ function FunctionPlot() {
       }
       ctx.setLineDash([])
       ctx.font = '12px Inter, sans-serif'
-      ctx.fillStyle = '#b9b0c7'
+      ctx.fillStyle = muted
       for (const [i, label] of ['0', 'π/2', 'π', '3π/2', '2π'].entries()) {
         if (width < 160 && i % 2) continue
         ctx.textAlign = i === 0 ? 'left' : i === 4 ? 'right' : 'center'

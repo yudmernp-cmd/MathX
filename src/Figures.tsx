@@ -73,10 +73,10 @@ export function DataFigure({ data }: { data: Figure }) {
           role="img"
           aria-label={data.y + ' en función de ' + data.x}
         >
-          <path d={`M52 20V165 M52 ${y(0)}H355`} fill="none" stroke="#a599b4" />
+          <path d={`M52 20V165 M52 ${y(0)}H355`} fill="none" stroke="var(--control-border)" />
           {x.ticks(6).map((t) => (
             <g key={t}>
-              <path d={`M${x(t)} ${y(0)}v4`} stroke="#a599b4" />
+              <path d={`M${x(t)} ${y(0)}v4`} stroke="var(--control-border)" />
               <text x={x(t)} y="184" textAnchor="middle">
                 {t}
               </text>
@@ -96,7 +96,7 @@ export function DataFigure({ data }: { data: Figure }) {
           <path
             d={linePath(data.points.map(([t, h]) => [x(t), y(h)])) || ''}
             fill="none"
-            stroke="#c4a0ff"
+            stroke="var(--accent)"
             strokeWidth="2.5"
           />
         </svg>
@@ -114,7 +114,7 @@ export function DataFigure({ data }: { data: Figure }) {
         role="img"
         aria-label={data.points.map((p) => p.join(', ')).join(' y ')}
       >
-        <path d="M55 24V158H365" fill="none" stroke="#a599b4" />
+        <path d="M55 24V158H365" fill="none" stroke="var(--control-border)" />
         <text x="7" y="18">
           {data.y}
         </text>
@@ -123,7 +123,7 @@ export function DataFigure({ data }: { data: Figure }) {
         </text>
         <path
           d={linePath(data.points.map(([a, b]) => [x(a), y(b)])) || ''}
-          stroke="#c4a0ff"
+          stroke="var(--accent)"
           fill="none"
           strokeWidth="3"
         />
@@ -131,11 +131,11 @@ export function DataFigure({ data }: { data: Figure }) {
           <g key={a}>
             <path
               d={`M55 ${y(b)}H${x(a)}V158`}
-              stroke="#93869f"
+              stroke="var(--muted)"
               fill="none"
               strokeDasharray="3 4"
             />
-            <circle cx={x(a)} cy={y(b)} r="4" fill="#c4a0ff" />
+            <circle cx={x(a)} cy={y(b)} r="4" fill="var(--accent)" />
             <text x="49" y={y(b) + 4} textAnchor="end">
               {b}
             </text>
