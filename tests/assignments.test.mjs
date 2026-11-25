@@ -18,14 +18,14 @@ delete process.env.VERCEL
 const teacher = (action, body) => assignments('admin', action, body)
 const day = (ms = Date.now()) =>
   new Date(ms - 5 * 3600000).toISOString().slice(0, 10)
-async function student(name, dni) {
-  const p = await enroll({ name, dni })
-  return identify({ ...p, dni })
+async function student(name) {
+  const p = await enroll({ name })
+  return identify(p)
 }
 
 test('reto privado con borrador, avisos, corrección manual y cambios de nota', async () => {
-  const user = await student('Alumna del reto', '00000021'),
-    other = await student('Otro alumno', '00000022')
+  const user = await student('Alumna del reto'),
+    other = await student('Otro alumno')
   const spec = {
     kind: 'challenge',
     title: 'Área de un círculo',
@@ -158,8 +158,8 @@ test('selección P1/P2, examen común de 80 puntos, expiración y top con notas 
       date: day(Date.now() + paper * 86400000),
       sourceId: source.id,
     })
-    const a = await student('Revisión P' + paper, '0000003' + paper),
-      b = await student('Segunda P' + paper, '0000004' + paper)
+    const a = await student('Revisión P' + paper),
+      b = await student('Segunda P' + paper)
     await assert.rejects(assignments(a, 'beginTask', { task: future.id }), {
       status: 409,
     })
@@ -237,7 +237,7 @@ test('selección P1/P2, examen común de 80 puntos, expiración y top con notas 
 test('un corte de red y el vencimiento del plazo se reconocen aunque el alumno cierre la página', async (t) => {
   const start = Date.parse('2030-06-09T14:00:00-05:00')
   t.mock.timers.enable({ apis: ['Date'], now: start })
-  const user = await student('Entrega automática', '00000053')
+  const user = await student('Entrega automática')
   const { id: task } = await teacher('publish', {
     kind: 'challenge',
     date: day(),

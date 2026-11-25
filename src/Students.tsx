@@ -13,7 +13,6 @@ export function Enrollment() {
     try {
       const r = await request<{ name: string; code: string }>('enroll', {
         name: values.get('name'),
-        dni: values.get('dni'),
       })
       form.reset()
       setCode(r.name + ' · ' + r.code)
@@ -43,17 +42,6 @@ export function Enrollment() {
             Nombre
             <input required maxLength={80} name="name" autoComplete="off" />
           </label>
-          <label>
-            DNI
-            <input
-              required
-              name="dni"
-              inputMode="numeric"
-              pattern="[0-9]{8}"
-              maxLength={8}
-              autoComplete="off"
-            />
-          </label>
           <button className="primary" disabled={busy}>
             Crear código personal
           </button>
@@ -74,7 +62,6 @@ export function Enrollment() {
 type Student = {
   id: string
   name: string
-  dni: string | null
   hasCode: boolean
   points: number
 }
@@ -89,14 +76,13 @@ function Account({
   onRemoved: (message: string) => void
 }) {
   const [shown, setShown] = useState(''),
-    [code, setCode] = useState(''),
-    [dni, setDni] = useState('')
+    [code, setCode] = useState('')
   const [message, setMessage] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
   async function act(
     operation: string,
-    data: { code?: string; dni?: string } = {},
+    data: { code?: string } = {},
   ) {
     const warning =
       operation === 'delete'
@@ -147,32 +133,7 @@ function Account({
     >
       <h2>{student.name}</h2>
       <p>Usuario de ingreso · {student.name}</p>
-      <p>DNI · {student.dni ?? 'Pendiente de confirmar'}</p>
       <p>Puntos · {student.points}</p>
-      {!student.dni && (
-        <form
-          className="roster"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void act('dni', { dni })
-          }}
-        >
-          <label>
-            DNI de la inscripción
-            <input
-              required
-              pattern="[0-9]{8}"
-              maxLength={8}
-              inputMode="numeric"
-              value={dni}
-              onChange={(e) => setDni(e.target.value)}
-            />
-          </label>
-          <button className="secondary" disabled={busy}>
-            Confirmar DNI
-          </button>
-        </form>
-      )}
       <h3>Código personal de acceso</h3>
       {shown ? (
         <p>
@@ -281,8 +242,7 @@ export function Students() {
   }, [])
   const match = search.trim().toLocaleLowerCase('es')
   const filtered = rows?.filter(
-    (s) =>
-      s.name.toLocaleLowerCase('es').includes(match) || s.dni?.includes(match),
+    (s) => s.name.toLocaleLowerCase('es').includes(match),
   )
   const student = rows?.find((s) => s.id === selected)
   return (
@@ -292,7 +252,7 @@ export function Students() {
         <section className="panel">
           <h2>Alumnos inscritos{rows && ' · ' + rows.length}</h2>
           <label className="directory-search">
-            Buscar por nombre o DNI
+            Buscar por nombre
             <input
               type="search"
               value={search}
@@ -323,7 +283,7 @@ export function Students() {
                   }}
                 >
                   <strong>{s.name}</strong>
-                  <span>{s.dni ?? 'DNI pendiente'}</span>
+                  <span>Cuenta {s.id.slice(-8)}</span>
                 </button>
               </li>
             ))}

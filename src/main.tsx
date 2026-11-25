@@ -32,8 +32,7 @@ function App() {
     [adminForm, setAdminForm] = useState(false),
     [view, setView] = useState<'practice' | 'ranking' | 'learning'>('practice'),
     [working, setWorking] = useState(false)
-  const [name, setName] = useState(''),
-    [dni, setDni] = useState('')
+  const [name, setName] = useState('')
 
   const [unavailable, setUnavailable] = useState(false)
   const sessionRequest = useRef(0)
@@ -49,7 +48,6 @@ function App() {
     setView('practice')
     setAdminTab('Actividades')
     setName('')
-    setDni('')
     setExpires(0)
     setPassword('')
   }, [])
@@ -102,12 +100,11 @@ function App() {
       } else {
         const s = await request<Identity>(
           'login',
-          adminForm ? { admin: true, password } : { name, dni, code: password },
+          adminForm ? { admin: true, password } : { name, code: password },
         )
         setUnavailable(false)
         setIdentity(s)
         setName('')
-        setDni('')
         setPassword('')
         setExpires(s.expires)
       }
@@ -230,17 +227,6 @@ function App() {
                       maxLength={80}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                    />
-                    <label htmlFor="dni">DNI</label>
-                    <input
-                      id="dni"
-                      placeholder="8 dígitos"
-                      required
-                      inputMode="numeric"
-                      pattern="[0-9]{8}"
-                      maxLength={8}
-                      value={dni}
-                      onChange={(e) => setDni(e.target.value)}
                     />
                   </>
                 )}

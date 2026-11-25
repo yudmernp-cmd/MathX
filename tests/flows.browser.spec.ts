@@ -12,17 +12,17 @@ const button = (p: Page, name: string) =>
   p.getByRole('button', { name, exact: true })
 const profiles = new WeakMap<
   Page,
-  { name: string; dni: string; code: string }
+  { name: string; code: string }
 >()
 async function login(page: Page) {
   await page.goto('/')
   await expect(page.getByLabel('Código personal')).toBeVisible()
+  await expect(page.getByLabel('DNI')).toHaveCount(0)
   let profile = profiles.get(page)
   if (!profile) {
     if (process.env.MATHX_TEST_URL) {
       profile = {
         name: process.env.MATHX_TEST_NAME!,
-        dni: process.env.MATHX_TEST_DNI!,
         code: process.env.MATHX_TEST_CODE!,
       }
     } else {
@@ -40,18 +40,16 @@ async function login(page: Page) {
           })
         ).ok(),
       ).toBeTruthy()
-      const dni = String(10000000 + Math.floor(Math.random() * 90000000)),
-        name = 'Estudiante de prueba'
-      const r = await api('enroll', { dni, name })
+      const name = 'Estudiante de prueba'
+      const r = await api('enroll', { name })
       expect(r.ok()).toBeTruthy()
-      profile = { dni, name, code: (await r.json()).code }
+      profile = { name, code: (await r.json()).code }
       await api('logout', {})
       await page.reload()
     }
     profiles.set(page, profile)
   }
   await page.getByLabel('Nombre', { exact: true }).fill(profile.name)
-  await page.getByLabel('DNI', { exact: true }).fill(profile.dni)
   await page.getByLabel('Código personal').fill(profile.code)
   await button(page, 'Entrar al aula').click()
   await expect(
@@ -235,7 +233,6 @@ for (const paper of [1, 2]) {
 test('una clave incorrecta conserva cerrado el catálogo', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Nombre', { exact: true }).fill('Prueba')
-  await page.getByLabel('DNI', { exact: true }).fill('00000000')
   await page.getByLabel('Código personal').fill('000000')
   await button(page, 'Entrar al aula').click()
   await expect(page.getByRole('alert')).toContainText('incorrecta')
@@ -260,10 +257,8 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
     .getByLabel('Clave de administración')
     .fill(process.env.MATHX_ADMIN_PASSWORD!)
   await button(page, 'Entrar al aula').click()
-  const dni = String(10000000 + Math.floor(Math.random() * 90000000))
   await button(page, 'Inscribir alumno').click()
   await page.getByLabel('Nombre', { exact: true }).fill('Estudiante del top')
-  await page.getByLabel('DNI', { exact: true }).fill(dni)
   await button(page, 'Crear código personal').click()
   const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
   await button(page, 'Actividades').click()
@@ -288,7 +283,6 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
     await student
       .getByLabel('Nombre', { exact: true })
       .fill('Estudiante del top')
-    await student.getByLabel('DNI', { exact: true }).fill(dni)
     await student.getByLabel('Código personal').fill(code)
     await button(student, 'Entrar al aula').click()
     await button(student, 'Ver en Mi aula').click()
@@ -527,22 +521,20 @@ test('el administrador gestiona el acceso y el avance de un alumno desde Usuario
   await page.getByLabel('Clave de administración').fill(process.env.MATHX_ADMIN_PASSWORD!)
   await button(page, 'Entrar al aula').click()
   await button(page, 'Inscribir alumno').click()
-  const dni = String(10000000 + Math.floor(Math.random() * 90000000))
-  const name = 'Alumno de gestión ' + dni.slice(-4)
+  const name = 'Alumno de gestión ' + crypto.randomUUID().slice(-8)
   await page.getByLabel('Nombre', { exact: true }).fill(name)
-  await page.getByLabel('DNI', { exact: true }).fill(dni)
   await button(page, 'Crear código personal').click()
   const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
   await button(page, 'Usuarios').click()
-  await page.getByLabel('Buscar por nombre o DNI').fill(dni)
-  const row = page.getByRole('button', { name: name + ' ' + dni })
+  await page.getByLabel('Buscar por nombre').fill(name)
+  const row = page.getByRole('button', { name: new RegExp(name + ' Cuenta ') })
   await row.click()
   await button(page, 'Ver código').click()
   await expect(page.getByText(code, { exact: true })).toBeVisible()
   const origin = new URL(page.url()).origin
   const ctx = await browser.newContext({baseURL:origin})
   const login = (pin: string) => ctx.request.post('/api/classroom?action=login', {
-    headers:{Origin:origin},data:{name,dni,code:pin},
+    headers:{Origin:origin},data:{name,code:pin},
   })
   try {
     expect((await login(code)).status()).toBe(200)

@@ -16,13 +16,13 @@ test('identidad, concurrencia, clasificación y aislamiento entre convocatorias'
   delete process.env.BLOB_READ_WRITE_TOKEN
   delete process.env.VERCEL
   process.env.MATHX_SESSION_SECRET = randomBytes(32).toString('hex')
-  const a = await enroll({ name: 'Ana', dni: '00000001' }),
-    b = await enroll({ name: 'Luis', dni: '00000002' })
+  const a = await enroll({ name: 'Ana' }),
+    b = await enroll({ name: 'Luis' })
   assert.match(a.code, /^\d{6}$/)
-  await assert.rejects(enroll({ name: 'Otro', dni: '00000001' }))
-  const id = await identify({ ...a, dni: '00000001' }),
-    other = await identify({ ...b, dni: '00000002' })
-  await assert.rejects(identify({ ...a, name: 'Luis', dni: '00000001' }))
+  await assert.rejects(enroll({ name: '  ' }))
+  const id = await identify(a),
+    other = await identify(b)
+  await assert.rejects(identify({ ...a, name: 'Luis' }))
   const q = drills('Funciones', 3, 10)[0],
     proof = { drill: q, signature: drillTicket(id, q), answer: q.respuesta }
   await assert.rejects(submit(other, proof))
@@ -74,17 +74,16 @@ test('padrón histórico, rotación, reinicio y baja mantienen aislados accesos 
     s.round = { best: { [id]: 2 }, submitted: {} }
   }, true)
   const detail = () => directory().then(rows => rows.find(r => r.name === name))
-  assert.equal((await detail()).dni, null)
+  assert.equal(Object.hasOwn(await detail(), 'dni'), false)
   assert.equal((await manageStudent({ id, operation: 'reveal' })).code, null)
-  await assert.rejects(manageStudent({ id, operation: 'dni', dni: '00000000' }), { status: 400 })
-  const old = await identify({ dni, code, name }, true)
-  assert.equal((await detail()).dni, dni)
+  const old = await identify({ code, name }, true)
+  assert.equal(Object.hasOwn(await detail(), 'dni'), false)
   assert.equal((await manageStudent({ id, operation: 'reveal' })).code, code)
   assert.ok(!(await state(s => JSON.stringify(s))).includes(JSON.stringify(dni)))
   await manageStudent({ id, operation: 'code', code: '000124' })
   await assert.rejects(checkAccess(old), { status: 401 })
-  await assert.rejects(identify({ name, dni, code }), { status: 401 })
-  const login = { name, dni, code: '000124' }
+  await assert.rejects(identify({ name, code }), { status: 401 })
+  const login = { name, code: '000124' }
   const active = await identify(login, true)
   assert.equal(await checkAccess(active), true)
   assert.equal((await detail()).points, 3)
@@ -99,7 +98,14 @@ test('padrón histórico, rotación, reinicio y baja mantienen aislados accesos 
   await manageStudent({ id: fresh.id, operation: 'delete' })
   assert.equal(await detail(), undefined)
   await assert.rejects(identify(login), { status: 401 })
-  await enroll({ name, dni })
+  await enroll({ name })
   await assert.rejects(checkAccess(session), { status: 401 })
   assert.notEqual((await detail()).id, fresh.id)
+})
+
+test('los alumnos con el mismo nombre conservan cuentas independientes', async () => {
+  const first = await enroll({ name: 'María Pérez' })
+  const second = await enroll({ name: 'María Pérez' })
+  assert.notEqual(first.code, second.code)
+  assert.notEqual(await identify({ ...first, name: '  MARÍA   PÉREZ  ' }), await identify(second))
 })

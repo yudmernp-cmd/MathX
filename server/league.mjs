@@ -173,29 +173,24 @@ function setCode(s, p, tag, requested) {
   p.failures = p.until = 0
   return code
 }
-export async function enroll({ name, dni }) {
-  if (typeof name !== 'string' || !name.trim() || name.length > 80 ||
-      typeof dni !== 'string' || !/^\d{8}$/.test(dni))
-    fail(400, 'Introduce un nombre y un DNI de ocho dígitos.')
-  const tag = sign('dni', dni)
+export async function enroll({ name }) {
+  if (typeof name !== 'string' || !name.trim() || name.length > 80)
+    fail(400, 'Introduce el nombre del alumno (hasta 80 caracteres).')
   return state(s => {
-    if (s.students[tag] || s.byDni?.[tag]) fail(409, 'Este DNI ya está inscrito.')
     const id = randomBytes(32).toString('hex')
-    const p = { name: name.trim(), tag, protectedDni: protect(tag, 'dni', dni), seen: {}, points: 0 }
-    const code = setCode(s, p, tag)
+    const p = { name: name.trim(), seen: {}, points: 0 }
+    const code = setCode(s, p, id)
     s.students[id] = p
-    s.byDni ??= {}
-    s.byDni[tag] = id
     return { name: p.name, code }
   }, true)
 }
 export function directory() {
   return state(s => Object.entries(s.students).map(([id, p]) => ({
-    id, name: p.name, dni: reveal(p.tag ?? id, 'dni', p.protectedDni),
+    id, name: p.name,
     points: p.points, hasCode: !!p.protectedCode,
   })).sort((a, b) => a.name.localeCompare(b.name, 'es')))
 }
-export function manageStudent({ id, operation, code, dni }) {
+export function manageStudent({ id, operation, code }) {
   if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id)) fail(400, 'Alumno inválido.')
   return state(s => {
     const p = s.students[id]
@@ -203,12 +198,6 @@ export function manageStudent({ id, operation, code, dni }) {
     const tag = p.tag ?? id
     if (operation === 'reveal') return { code: reveal(tag, 'code', p.protectedCode) }
     if (operation === 'code') return { code: setCode(s, p, tag, code) }
-    if (operation === 'dni') {
-      if (typeof dni !== 'string' || !/^\d{8}$/.test(dni) || sign('dni', dni) !== tag)
-        fail(400, 'El DNI debe coincidir con el de la inscripción.')
-      p.protectedDni = protect(tag, 'dni', dni)
-      return {}
-    }
     if (!['reset', 'delete'].includes(operation)) fail(400, 'Operación desconocida.')
     for (const a of Object.values(s.assignments ?? {})) delete a.attempts[id]
     if (s.round) delete s.round.best[id]
@@ -219,8 +208,6 @@ export function manageStudent({ id, operation, code, dni }) {
     const next = randomBytes(32).toString('hex')
     const { seen, tried, stats, weeks, activity, ...account } = p
     s.students[next] = { ...account, tag, points: 0, seen: {} }
-    s.byDni ??= {}
-    s.byDni[tag] = next
     return { id: next }
   }, operation !== 'reveal')
 }
@@ -242,38 +229,44 @@ export function checkAccess(identity) {
   }
   return activeChecks.get(key)
 }
-export async function identify({ admin, password, dni, name, code }, forSession = false) {
+export async function identify({ admin, password, name, code }, forSession = false) {
   if (admin === true) {
     if (!process.env.MATHX_ADMIN_PASSWORD || !matches(password, process.env.MATHX_ADMIN_PASSWORD))
       fail(401, 'Credenciales incorrectas.')
     return forSession ? { id: 'admin' } : 'admin'
   }
-  if (typeof name !== 'string' || name.length > 80 || typeof dni !== 'string' ||
-      !/^\d{8}$/.test(dni) || typeof code !== 'string' || !/^\d{6}$/.test(code))
+  if (typeof name !== 'string' || !name.trim() || name.length > 80 ||
+      typeof code !== 'string' || !/^\d{6}$/.test(code))
     fail(401, 'Credenciales incorrectas.')
-  const tag = sign('dni', dni)
-  const valid = p => matches(p.pin, sign('pin', [tag, code])) && nameKey(name) === nameKey(p.name)
+  const normalized = nameKey(name)
   const denied = 'Credenciales incorrectas o acceso temporalmente bloqueado.'
-  const result = (id, p) => forSession ? { id, version: p.version } : id
-  const authenticated = await state(s => {
-    const id = s.byDni?.[tag] ?? tag, p = s.students[id]
-    if (!p || p.until > Date.now()) fail(401, denied)
-    return !p.failures && !p.until && p.protectedDni && p.protectedCode && valid(p) ? result(id, p) : null
-  })
-  if (authenticated) return authenticated
-  const ok = await state(s => {
-    const id = s.byDni?.[tag] ?? tag, p = s.students[id]
-    if (!p || p.until > Date.now()) return false
-    if (!valid(p)) {
-      p.failures = (p.failures ?? 0) + 1
-      if (p.failures >= 5) { p.until = Date.now() + 600000; p.failures = 0 }
-      return false
+  // Names may be shared. The personal code distinguishes the accounts.
+  function authenticate(s, write) {
+    const candidates = Object.entries(s.students).filter(([, p]) => nameKey(p.name) === normalized)
+    if (!candidates.length) fail(401, denied)
+    const now = Date.now()
+    const found = candidates.find(([id, p]) => matches(p.pin, sign('pin', [p.tag ?? id, code])))
+    if (found) {
+      const [id, p] = found
+      if (p.until > now) fail(401, denied)
+      if (!write && (p.failures || p.until || !p.protectedCode)) return null
+      if (write) {
+        p.protectedCode ??= protect(p.tag ?? id, 'code', code)
+        p.failures = p.until = 0
+      }
+      return forSession ? { id, version: p.version } : id
     }
-    p.protectedDni ??= protect(tag, 'dni', dni)
-    p.protectedCode ??= protect(tag, 'code', code)
-    p.failures = p.until = 0
-    return result(id, p)
-  }, true)
+    if (write) {
+      for (const [, p] of candidates) {
+        if (p.until > now) continue
+        p.failures = (p.failures ?? 0) + 1
+        if (p.failures >= 5) { p.until = now + 600000; p.failures = 0 }
+      }
+    }
+    return null
+  }
+  const ok = await state(s => authenticate(s, false)) ??
+    await state(s => authenticate(s, true), true)
   if (!ok) fail(401, denied)
   return ok
 }
