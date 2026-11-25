@@ -55,3 +55,51 @@ test('identidad, concurrencia, clasificación y aislamiento entre convocatorias'
   assert.deepEqual((await boards()).exams, [])
   await toggle(false)
 })
+
+test('padrón histórico, rotación, reinicio y baja mantienen aislados accesos y datos', async () => {
+  process.env.MATHX_LEAGUE_DB = ':memory:'
+  delete process.env.BLOB_READ_WRITE_TOKEN
+  delete process.env.VERCEL
+  process.env.MATHX_SESSION_SECRET ||= randomBytes(32).toString('hex')
+  const { createHmac } = await import('node:crypto')
+  const { state, directory, manageStudent, checkAccess } = await import('../server/league.mjs')
+  const sign = (domain, value) => createHmac('sha256', process.env.MATHX_SESSION_SECRET)
+    .update(JSON.stringify([domain, value])).digest('hex')
+  const dni = '00000123', code = '009876', name = 'Cuenta histórica'
+  const id = sign('dni', dni)
+  await state(s => {
+    s.students[id] = { name, points: 3, seen: { x: 1 }, weeks: { last: {} },
+      pin: sign('pin', [id, code]), codeTag: sign('assigned-code', code) }
+    s.assignments = { x: { attempts: { [id]: { grade: { points: 2 } } } } }
+    s.round = { best: { [id]: 2 }, submitted: {} }
+  }, true)
+  const detail = () => directory().then(rows => rows.find(r => r.name === name))
+  assert.equal((await detail()).dni, null)
+  assert.equal((await manageStudent({ id, operation: 'reveal' })).code, null)
+  await assert.rejects(manageStudent({ id, operation: 'dni', dni: '00000000' }), { status: 400 })
+  const old = await identify({ dni, code, name }, true)
+  assert.equal((await detail()).dni, dni)
+  assert.equal((await manageStudent({ id, operation: 'reveal' })).code, code)
+  assert.ok(!(await state(s => JSON.stringify(s))).includes(JSON.stringify(dni)))
+  await manageStudent({ id, operation: 'code', code: '000124' })
+  await assert.rejects(checkAccess(old), { status: 401 })
+  await assert.rejects(identify({ name, dni, code }), { status: 401 })
+  const login = { name, dni, code: '000124' }
+  const active = await identify(login, true)
+  assert.equal(await checkAccess(active), true)
+  assert.equal((await detail()).points, 3)
+  const fresh = await manageStudent({ id, operation: 'reset' })
+  assert.notEqual(fresh.id, id)
+  assert.equal(await identify(login), fresh.id)
+  assert.equal((await detail()).points, 0)
+  assert.ok(await state(s => !s.students[id] && !s.round.best[id] && !s.assignments.x.attempts[id] &&
+    !s.students[fresh.id].weeks && !Object.keys(s.students[fresh.id].seen).length))
+  await assert.rejects(checkAccess(active), { status: 401 })
+  const session = await identify(login, true)
+  await manageStudent({ id: fresh.id, operation: 'delete' })
+  assert.equal(await detail(), undefined)
+  await assert.rejects(identify(login), { status: 401 })
+  await enroll({ name, dni })
+  await assert.rejects(checkAccess(session), { status: 401 })
+  assert.notEqual((await detail()).id, fresh.id)
+})

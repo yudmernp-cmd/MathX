@@ -261,10 +261,12 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
     .fill(process.env.MATHX_ADMIN_PASSWORD!)
   await button(page, 'Entrar al aula').click()
   const dni = String(10000000 + Math.floor(Math.random() * 90000000))
+  await button(page, 'Inscribir alumno').click()
   await page.getByLabel('Nombre', { exact: true }).fill('Estudiante del top')
   await page.getByLabel('DNI', { exact: true }).fill(dni)
   await button(page, 'Crear código personal').click()
   const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
+  await button(page, 'Actividades').click()
   await page.getByLabel('Título', { exact: true }).fill('Reto de áreas')
   await page
     .getByLabel('Enunciado')
@@ -290,7 +292,11 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
     await student.getByLabel('Código personal').fill(code)
     await button(student, 'Entrar al aula').click()
     await button(student, 'Ver en Mi aula').click()
+    const monitoring = student.waitForResponse(r =>
+      r.url().includes('action=task') && r.request().postDataJSON()?.action === 'signal',
+    )
     await button(student, 'Resolver reto').click()
+    await monitoring
     await expect(
       student.getByRole('heading', { name: 'Reto de áreas' }),
     ).toBeVisible()
@@ -513,3 +519,52 @@ for (const paper of [1, 2]) {
     await expect(page.getByRole('heading', { name: 'Configura tu práctica' })).toBeVisible()
   })
 }
+
+test('el administrador gestiona el acceso y el avance de un alumno desde Usuarios', async ({page, browser}) => {
+  test.skip(!!process.env.MATHX_TEST_URL, 'Usa exclusivamente el aula local.')
+  await page.goto('/')
+  await button(page, 'Administración').click()
+  await page.getByLabel('Clave de administración').fill(process.env.MATHX_ADMIN_PASSWORD!)
+  await button(page, 'Entrar al aula').click()
+  await button(page, 'Inscribir alumno').click()
+  const dni = String(10000000 + Math.floor(Math.random() * 90000000))
+  const name = 'Alumno de gestión ' + dni.slice(-4)
+  await page.getByLabel('Nombre', { exact: true }).fill(name)
+  await page.getByLabel('DNI', { exact: true }).fill(dni)
+  await button(page, 'Crear código personal').click()
+  const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
+  await button(page, 'Usuarios').click()
+  await page.getByLabel('Buscar por nombre o DNI').fill(dni)
+  const row = page.getByRole('button', { name: name + ' ' + dni })
+  await row.click()
+  await button(page, 'Ver código').click()
+  await expect(page.getByText(code, { exact: true })).toBeVisible()
+  const origin = new URL(page.url()).origin
+  const ctx = await browser.newContext({baseURL:origin})
+  const login = (pin: string) => ctx.request.post('/api/classroom?action=login', {
+    headers:{Origin:origin},data:{name,dni,code:pin},
+  })
+  try {
+    expect((await login(code)).status()).toBe(200)
+    expect((await ctx.request.get('/api/classroom?action=directory')).status()).toBe(403)
+    page.once('dialog', d => d.accept())
+    await button(page, 'Generar nuevo código').click()
+    await expect(page.getByText('Código actualizado.')).toBeVisible()
+    const next = (await page.locator('.account-editor strong').innerText()).trim()
+    expect(next).not.toBe(code)
+    expect((await ctx.request.get('/api/classroom?action=status')).ok()).toBeTruthy()
+    expect((await (await ctx.request.get('/api/classroom?action=status')).json()).authenticated).toBe(false)
+    expect((await login(next)).status()).toBe(200)
+    page.once('dialog', d => d.accept())
+    await button(page, 'Reiniciar avance').click()
+    await expect(page.getByRole('status')).toContainText('Se reinició el avance')
+    await row.click()
+    page.once('dialog', d => d.dismiss())
+    await button(page, 'Eliminar alumno').click()
+    await expect(row).toBeVisible()
+    page.once('dialog', d => d.accept())
+    await button(page, 'Eliminar alumno').click()
+    await expect(row).toHaveCount(0)
+    expect((await login(next)).status()).toBe(401)
+  } finally { await ctx.close() }
+})

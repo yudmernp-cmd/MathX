@@ -1223,3 +1223,13 @@ textarea,
 @media (min-width: 700px) {
   .mode-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+.directory-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 1rem; align-items: start; }
+.directory-search { display: grid; gap: .3rem; margin: 1rem 0; }
+.student-list { display: grid; gap: .3rem; max-height: 65vh; overflow: auto; }
+.student-list button { width: 100%; justify-content: space-between; flex-wrap: wrap; padding: .7rem; text-align: left; border: 1px solid var(--border); border-radius: 6px; }
+.student-list button[aria-pressed='true'] { background: var(--tint); border-color: var(--accent); color: var(--accent); }
+.student-list span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.account-editor h3, .account-actions { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; }
+.account-editor h3 { font-weight: 650; }
+@media (max-width: 760px) { .directory-layout { grid-template-columns: 1fr; } .student-list { max-height: 40vh; } }

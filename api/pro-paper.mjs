@@ -1,3 +1,4 @@
+import { checkAccess, ClassroomError } from '../server/league.mjs'
 import { readFile } from 'node:fs/promises'
 import { session, same, paperSignature } from '../server/session.mjs'
 
@@ -26,12 +27,14 @@ export default async function handler(req, res) {
   if (asset !== null && !/^[a-f0-9]{64}$/.test(asset))
     return reject(400, 'Figura no válida.')
   try {
+    await checkAccess(identity)
     const filename = asset ? asset + '.webp' : 'questions.json'
     const content = await readFile('server-data/pro-es/' + id + '/' + filename)
     res.setHeader('Content-Type', asset ? 'image/webp' : 'application/json; charset=utf-8')
     res.setHeader('Content-Length', content.length)
     res.end(req.method === 'HEAD' ? undefined : content)
   } catch (error) {
+    if (error instanceof ClassroomError) return reject(error.status, error.message)
     return reject(error.code === 'ENOENT' ? 404 : 503, 'No se pudo cargar el material de la prueba.')
   }
 }

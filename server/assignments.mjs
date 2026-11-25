@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto'
-import { state, ClassroomError, examPrompts } from './league.mjs'
+import { state, accountState, ClassroomError, examPrompts } from './league.mjs'
 import { bank } from './bank.mjs'
 const fail = (message, status = 400) => {
   throw new ClassroomError(status, message)
@@ -49,7 +49,7 @@ function fields(values, questions) {
   )
   return result
 }
-export async function assignments(id, action, b = {}) {
+export async function assignments(id, action, b = {}, identity) {
   const admin = id === 'admin',
     now = Date.now()
   const teacher = ['sources', 'source', 'publish', 'grade', 'manage', 'inspect']
@@ -154,7 +154,7 @@ export async function assignments(id, action, b = {}) {
       return summary(a)
     }, true)
   }
-  return state((s) => {
+  return accountState(identity, (s) => {
     const all = Object.values(s.assignments ?? {})
     if (action === 'learning') {
       const list = all

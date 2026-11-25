@@ -8,6 +8,7 @@ import {
 import {
   identify,
   enroll,
+  checkAccess, directory, manageStudent,
   boards,
   toggle,
   submit,
@@ -51,8 +52,7 @@ export default async function handler(req, res) {
     })
   }
   const until = session(req)
-  if (req.method === 'GET' && action === 'status')
-    return send(200, { authenticated: !!until, expires: 0, ...until })
+
   if (req.method === 'POST') {
     try {
       if (
@@ -65,6 +65,14 @@ export default async function handler(req, res) {
     }
   }
   try {
+    if (req.method === 'GET' && action === 'status') {
+      if (until && !until.admin) {
+        try { await checkAccess(until) }
+        catch (e) { if (e.status === 401) return send(200, { authenticated: false, expires: 0 }); throw e }
+      }
+      return send(200, until ? { authenticated: true, expires: until.expires, id: until.id, admin: until.admin }
+        : { authenticated: false, expires: 0 })
+    }
     const selection = ['practice', 'exam', 'drills'].includes(action)
     const limit =
       selection || action === 'submit' || action === 'task' ? 1024 * 1024 : 8192
@@ -72,9 +80,9 @@ export default async function handler(req, res) {
       return send(413, { error: 'Solicitud demasiado extensa.' })
     if (req.method === 'POST' && action === 'login') {
       const body = await read(req)
-      const id = await identify(body)
+      const { id, version } = await identify(body, true)
       const exp = Math.floor(Date.now() / 1000) + lifetime,
-        value = exp + '.' + id + '.' + randomBytes(16).toString('hex')
+        value = [exp, id, randomBytes(16).toString('hex'), version].filter(Boolean).join('.')
       res.setHeader(
         'Set-Cookie',
         cookie +
@@ -93,6 +101,14 @@ export default async function handler(req, res) {
       })
     }
     if (!until) return send(401, { error: 'Inicia sesión en el aula.' })
+    if (action === 'directory' || action === 'student') {
+      if (!until.admin) return send(403, { error: 'Acceso exclusivo de administración.' })
+      if (req.method === 'GET' && action === 'directory') return send(200, await directory())
+      if (req.method === 'POST' && action === 'student') return send(200, await manageStudent(await read(req)))
+      return send(405, { error: 'Método no permitido.' })
+    }
+    if (!until.admin && (selection || ['catalog', 'asset', 'pro-exam'].includes(action)))
+      await checkAccess(until)
     if (req.method === 'POST' && action === 'pro-exam') {
       if (until.admin) return send(403, { error: 'Acceso exclusivo de estudiantes.' })
       const { paper } = await read(req)
@@ -114,13 +130,13 @@ export default async function handler(req, res) {
       return send(200, { authenticated: false })
     }
     if (req.method === 'GET' && action === 'learning')
-      return send(200, await assignments(until.id, 'learning'))
+      return send(200, await assignments(until.id, 'learning', {}, until))
     if (req.method === 'POST' && action === 'task') {
       const body = await read(req, limit)
-      return send(200, await assignments(until.id, body.action, body))
+      return send(200, await assignments(until.id, body.action, body, until))
     }
     if (req.method === 'GET' && action === 'boards')
-      return send(200, await boards())
+      return send(200, await boards(until))
     if (req.method === 'POST' && ['enroll', 'toggle'].includes(action)) {
       if (!until.admin)
         return send(403, { error: 'Acceso exclusivo de administración.' })
@@ -135,7 +151,7 @@ export default async function handler(req, res) {
       )
     }
     if (req.method === 'POST' && action === 'submit')
-      return send(200, await submit(until.id, await read(req, limit)))
+      return send(200, await submit(until.id, await read(req, limit), until))
     if (req.method === 'GET' && action === 'catalog')
       return send(200, bank().catalog)
     if (req.method === 'GET' && action === 'asset') {

@@ -45,11 +45,9 @@ function Ranking({
     </section>
   )
 }
-export function Boards({ admin }: { admin: boolean }) {
+export function Boards() {
   const [data, setData] = useState<Data | null>(null),
-    [err, setErr] = useState(''),
-    [code, setCode] = useState(''),
-    [busy, setBusy] = useState(false)
+    [err, setErr] = useState('')
   const load = useCallback(async () => {
     try {
       setData(await request<Data>('boards'))
@@ -63,71 +61,10 @@ export function Boards({ admin }: { admin: boolean }) {
     const id = setInterval(load, 30000)
     return () => clearInterval(id)
   }, [load])
-  async function action(fn: () => Promise<void>) {
-    setBusy(true)
-    setErr('')
-    try {
-      await fn()
-      await load()
-    } catch (e) {
-      setErr((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
   return (
     <div className="boards">
-      <h1>{admin ? 'Gestión del aula' : 'Clasificaciones'}</h1>
+      <h1>Clasificaciones</h1>
       {err && <p role="alert">{err}</p>}
-      {admin && (
-        <section className="panel">
-          <h2>Inscribir estudiante</h2>
-          <form
-            className="roster"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const form = e.currentTarget,
-                values = new FormData(form)
-              setCode('')
-              void action(async () => {
-                const r = await request<{ name: string; code: string }>(
-                  'enroll',
-                  { name: values.get('name'), dni: values.get('dni') },
-                )
-                form.reset()
-                setCode(r.name + ' · ' + r.code)
-              })
-            }}
-          >
-            <label>
-              Nombre
-              <input required maxLength={80} name="name" autoComplete="off" />
-            </label>
-            <label>
-              DNI
-              <input
-                required
-                name="dni"
-                inputMode="numeric"
-                pattern="[0-9]{8}"
-                maxLength={8}
-                autoComplete="off"
-              />
-            </label>
-            <button className="primary" disabled={busy}>
-              Crear código personal
-            </button>
-          </form>
-          {code && (
-            <p role="status">
-              Entrega este código en privado. <strong>{code}</strong>{' '}
-              <button className="secondary" onClick={() => setCode('')}>
-                Ocultar
-              </button>
-            </p>
-          )}
-        </section>
-      )}
       {data && (
         <>
           <Ranking

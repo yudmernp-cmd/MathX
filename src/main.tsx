@@ -11,6 +11,8 @@ import './style.css'
 import { storageKey } from './math/session'
 import { ApiError, request } from './request'
 import { Boards } from './Boards'
+const Enrollment = lazy(() => import('./Students').then(m => ({ default: m.Enrollment })))
+const Students = lazy(() => import('./Students').then(m => ({ default: m.Students })))
 
 const Classroom = lazy(() => import('./Classroom'))
 const LearningPanel = lazy(() =>
@@ -26,6 +28,7 @@ function clearSession() {
 type Identity = { expires: number; id?: string; admin?: boolean }
 function App() {
   const [identity, setIdentity] = useState<Identity>({ expires: 0 }),
+    [adminTab, setAdminTab] = useState('Actividades'),
     [adminForm, setAdminForm] = useState(false),
     [view, setView] = useState<'practice' | 'ranking' | 'learning'>('practice'),
     [working, setWorking] = useState(false)
@@ -44,6 +47,7 @@ function App() {
     setWorking(false)
     setIdentity({ expires: 0 })
     setView('practice')
+    setAdminTab('Actividades')
     setName('')
     setDni('')
     setExpires(0)
@@ -147,8 +151,15 @@ function App() {
           {expires ? (
             identity.admin ? (
               <>
-                <LearningPanel admin working={setWorking} />
-                {!working && <Boards admin />}
+                {!working && <nav className="section-tabs" aria-label="Administración del aula">
+                  {['Actividades', 'Inscribir alumno', 'Usuarios', 'Clasificaciones'].map(tab =>
+                    <button key={tab} className="secondary" aria-pressed={tab === adminTab}
+                      onClick={() => setAdminTab(tab)}>{tab}</button>)}
+                </nav>}
+                {adminTab === 'Actividades' && <LearningPanel admin working={setWorking} />}
+                {adminTab === 'Inscribir alumno' && <Enrollment />}
+                {adminTab === 'Usuarios' && <Students />}
+                {adminTab === 'Clasificaciones' && <Boards />}
               </>
             ) : (
               <>
@@ -181,7 +192,7 @@ function App() {
                 {view === 'learning' ? (
                   <LearningPanel working={setWorking} />
                 ) : view === 'ranking' ? (
-                  <Boards admin={false} />
+                  <Boards />
                 ) : (
                   <Classroom
                     openActivities={() => setView('learning')}

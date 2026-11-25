@@ -144,87 +144,141 @@ async function blobState(fn, write, signal) {
 }
 const nameKey = (name) =>
   name.trim().normalize('NFC').replace(/\s+/g, ' ').toLocaleLowerCase('es')
+function protect(tag, field, value) {
+  const iv = randomBytes(12)
+  const cipher = createCipheriv('aes-256-gcm', Buffer.from(sign('directory-key', [tag, field]), 'hex'), iv)
+  return Buffer.concat([iv, cipher.update(value, 'utf8'), cipher.final(), cipher.getAuthTag()]).toString('base64url')
+}
+function reveal(tag, field, value) {
+  if (!value) return null
+  const bytes = Buffer.from(value, 'base64url')
+  const cipher = createDecipheriv('aes-256-gcm', Buffer.from(sign('directory-key', [tag, field]), 'hex'), bytes.subarray(0, 12))
+  cipher.setAuthTag(bytes.subarray(-16))
+  return Buffer.concat([cipher.update(bytes.subarray(12, -16)), cipher.final()]).toString('utf8')
+}
+function setCode(s, p, tag, requested) {
+  const used = new Set(Object.values(s.students).map(student => student.codeTag))
+  let code = requested
+  if (code === undefined) {
+    do { code = String(randomInt(1000000)).padStart(6, '0') }
+    while (used.has(sign('assigned-code', code)))
+  } else {
+    if (typeof code !== 'string' || !/^\d{6}$/.test(code)) fail(400, 'El código debe tener seis dígitos.')
+    if (used.has(sign('assigned-code', code))) fail(409, 'Elige otro código.')
+  }
+  p.codeTag = sign('assigned-code', code)
+  p.pin = sign('pin', [tag, code])
+  p.protectedCode = protect(tag, 'code', code)
+  p.version = randomBytes(16).toString('hex')
+  p.failures = p.until = 0
+  return code
+}
 export async function enroll({ name, dni }) {
-  if (
-    typeof name !== 'string' ||
-    !name.trim() ||
-    name.length > 80 ||
-    typeof dni !== 'string' ||
-    !/^\d{8}$/.test(dni)
-  )
+  if (typeof name !== 'string' || !name.trim() || name.length > 80 ||
+      typeof dni !== 'string' || !/^\d{8}$/.test(dni))
     fail(400, 'Introduce un nombre y un DNI de ocho dígitos.')
-  const id = sign('dni', dni)
-  return state((s) => {
-    if (s.students[id]) fail(409, 'Este DNI ya está inscrito.')
-    const assigned = new Set(Object.values(s.students).map((p) => p.codeTag))
-    let code, codeTag
-    do {
-      code = String(randomInt(1000000)).padStart(6, '0')
-      codeTag = sign('assigned-code', code)
-    } while (assigned.has(codeTag))
-    s.students[id] = {
-      name: name.trim(),
-      codeTag,
-      pin: sign('pin', [id, code]),
-      seen: {},
-      points: 0,
-      failures: 0,
-      until: 0,
-    }
-    return { name: name.trim(), code }
+  const tag = sign('dni', dni)
+  return state(s => {
+    if (s.students[tag] || s.byDni?.[tag]) fail(409, 'Este DNI ya está inscrito.')
+    const id = randomBytes(32).toString('hex')
+    const p = { name: name.trim(), tag, protectedDni: protect(tag, 'dni', dni), seen: {}, points: 0 }
+    const code = setCode(s, p, tag)
+    s.students[id] = p
+    s.byDni ??= {}
+    s.byDni[tag] = id
+    return { name: p.name, code }
   }, true)
 }
-export async function identify({ admin, password, dni, name, code }) {
-  if (admin === true) {
-    if (
-      !process.env.MATHX_ADMIN_PASSWORD ||
-      !matches(password, process.env.MATHX_ADMIN_PASSWORD)
-    )
-      fail(401, 'Credenciales incorrectas.')
-    return 'admin'
-  }
-  if (
-    typeof name !== 'string' ||
-    name.length > 80 ||
-    typeof dni !== 'string' ||
-    !/^\d{8}$/.test(dni) ||
-    typeof code !== 'string' ||
-    !/^\d{6}$/.test(code)
-  )
-    fail(401, 'Credenciales incorrectas.')
-  const id = sign('dni', dni)
-  const valid = (student) =>
-    matches(student.pin, sign('pin', [id, code])) &&
-    nameKey(name) === nameKey(student.name)
-  const denied = 'Credenciales incorrectas o acceso temporalmente bloqueado.'
-  // Most logins only read the account. Reserve a conditional write for
-  // recording a failed attempt or clearing an existing failure counter.
-  const authenticated = await state((s) => {
-    const student = s.students[id]
-    if (!student || student.until > Date.now()) fail(401, denied)
-    return !student.failures && !student.until && valid(student)
-  })
-  if (authenticated) return id
-  const ok = await state((s) => {
+export function directory() {
+  return state(s => Object.entries(s.students).map(([id, p]) => ({
+    id, name: p.name, dni: reveal(p.tag ?? id, 'dni', p.protectedDni),
+    points: p.points, hasCode: !!p.protectedCode,
+  })).sort((a, b) => a.name.localeCompare(b.name, 'es')))
+}
+export function manageStudent({ id, operation, code, dni }) {
+  if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id)) fail(400, 'Alumno inválido.')
+  return state(s => {
     const p = s.students[id]
+    if (!p) fail(404, 'El alumno ya no figura en el padrón.')
+    const tag = p.tag ?? id
+    if (operation === 'reveal') return { code: reveal(tag, 'code', p.protectedCode) }
+    if (operation === 'code') return { code: setCode(s, p, tag, code) }
+    if (operation === 'dni') {
+      if (typeof dni !== 'string' || !/^\d{8}$/.test(dni) || sign('dni', dni) !== tag)
+        fail(400, 'El DNI debe coincidir con el de la inscripción.')
+      p.protectedDni = protect(tag, 'dni', dni)
+      return {}
+    }
+    if (!['reset', 'delete'].includes(operation)) fail(400, 'Operación desconocida.')
+    for (const a of Object.values(s.assignments ?? {})) delete a.attempts[id]
+    if (s.round) delete s.round.best[id]
+    delete s.students[id]
+    if (s.byDni) delete s.byDni[tag]
+    if (operation === 'delete') return {}
+    // A new identity also invalidates old exercise tickets and browser practice history.
+    const next = randomBytes(32).toString('hex')
+    const { seen, tried, stats, weeks, activity, ...account } = p
+    s.students[next] = { ...account, tag, points: 0, seen: {} }
+    s.byDni ??= {}
+    s.byDni[tag] = next
+    return { id: next }
+  }, operation !== 'reveal')
+}
+export function accountState(identity, fn, write = false) {
+  return state(s => {
+    if (identity && !identity.admin) {
+      const p = s.students[identity.id]
+      if (!p || (p.version && p.version !== identity.version)) fail(401, 'Vuelve a iniciar sesión.')
+    }
+    return fn(s)
+  }, write)
+}
+// Share only simultaneous read-only checks, e.g. several original figures on one page.
+const activeChecks = new Map()
+export function checkAccess(identity) {
+  const key = identity.id + ':' + identity.version
+  if (!activeChecks.has(key)) {
+    activeChecks.set(key, accountState(identity, () => true).finally(() => activeChecks.delete(key)))
+  }
+  return activeChecks.get(key)
+}
+export async function identify({ admin, password, dni, name, code }, forSession = false) {
+  if (admin === true) {
+    if (!process.env.MATHX_ADMIN_PASSWORD || !matches(password, process.env.MATHX_ADMIN_PASSWORD))
+      fail(401, 'Credenciales incorrectas.')
+    return forSession ? { id: 'admin' } : 'admin'
+  }
+  if (typeof name !== 'string' || name.length > 80 || typeof dni !== 'string' ||
+      !/^\d{8}$/.test(dni) || typeof code !== 'string' || !/^\d{6}$/.test(code))
+    fail(401, 'Credenciales incorrectas.')
+  const tag = sign('dni', dni)
+  const valid = p => matches(p.pin, sign('pin', [tag, code])) && nameKey(name) === nameKey(p.name)
+  const denied = 'Credenciales incorrectas o acceso temporalmente bloqueado.'
+  const result = (id, p) => forSession ? { id, version: p.version } : id
+  const authenticated = await state(s => {
+    const id = s.byDni?.[tag] ?? tag, p = s.students[id]
+    if (!p || p.until > Date.now()) fail(401, denied)
+    return !p.failures && !p.until && p.protectedDni && p.protectedCode && valid(p) ? result(id, p) : null
+  })
+  if (authenticated) return authenticated
+  const ok = await state(s => {
+    const id = s.byDni?.[tag] ?? tag, p = s.students[id]
     if (!p || p.until > Date.now()) return false
     if (!valid(p)) {
       p.failures = (p.failures ?? 0) + 1
-      if (p.failures >= 5) {
-        p.until = Date.now() + 600000
-        p.failures = 0
-      }
+      if (p.failures >= 5) { p.until = Date.now() + 600000; p.failures = 0 }
       return false
     }
-    p.failures = 0
-    p.until = 0
-    return true
+    p.protectedDni ??= protect(tag, 'dni', dni)
+    p.protectedCode ??= protect(tag, 'code', code)
+    p.failures = p.until = 0
+    return result(id, p)
   }, true)
   if (!ok) fail(401, denied)
-  return id
+  return ok
 }
-export function boards() {
-  return state((s) => {
+export function boards(identity) {
+  return accountState(identity, (s) => {
     const list = (entries) =>
       entries.sort(
         (a, b) => b.points - a.points || a.name.localeCompare(b.name, 'es'),
@@ -322,7 +376,7 @@ export function examPrompts(questions) {
     })),
   }))
 }
-export async function submit(id, body) {
+export async function submit(id, body, identity) {
   if (id === 'admin') fail(403, 'Acción exclusiva de estudiantes.')
   const { acceptsDrill, correct } = require('../server-data/league-grading.cjs')
   if (body.drill) {
@@ -334,7 +388,7 @@ export async function submit(id, body) {
       fail(400, 'Ejercicio inválido.')
     const right = acceptsDrill(drill, answer)
     const key = sign('exercise', [drill.instruccion, drill.expresion])
-    return state((s) => {
+    return accountState(identity, (s) => {
       const p = s.students[id]
       p.activity = Date.now()
       p.tried ??= {}
@@ -368,7 +422,7 @@ export async function submit(id, body) {
   if (!body.ticket || !body.answers || typeof body.answers !== 'object')
     fail(400, 'Entrega inválida.')
   const ticket = openExam(id, body.ticket)
-  const counted = await state((s) => {
+  const counted = await accountState(identity, (s) => {
     const r = s.round
     if (!r || r.id !== ticket.round) return false
     if (Object.hasOwn(r.submitted, ticket.attempt)) return true

@@ -17,15 +17,17 @@ export function session(req) {
     ?.slice(cookie.length + 1)
   if (
     !match ||
-    !/^\d{10,12}\.(?:admin|[a-f0-9]{64})\.[a-f0-9]{32}\.[a-f0-9]{64}$/.test(
+    !/^\d{10,12}\.(?:admin|[a-f0-9]{64})\.[a-f0-9]{32}(?:\.[a-f0-9]{32})?\.[a-f0-9]{64}$/.test(
       match,
     )
   )
     return 0
-  const [exp, id, nonce, sig] = match.split('.')
+  const fields = match.split('.')
+  const sig = fields.pop()
+  const [exp, id, , version] = fields
   return Number(exp) > Date.now() / 1000 &&
-    same(mac([exp, id, nonce].join('.')), sig)
-    ? { expires: Number(exp) * 1000, id, admin: id === 'admin' }
+    same(mac(fields.join('.')), sig)
+    ? { expires: Number(exp) * 1000, id, admin: id === 'admin', version }
     : 0
 }
 
