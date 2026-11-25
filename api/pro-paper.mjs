@@ -22,13 +22,16 @@ export default async function handler(req, res) {
   if (!/^[a-f0-9]{64}$/.test(id) ||
       !same(params.get('signature') || '', paperSignature(identity.id, id)))
     return reject(403, 'Este cuadernillo no está asignado a tu cuenta.')
+  const asset = params.get('asset')
+  if (asset !== null && !/^[a-f0-9]{64}$/.test(asset))
+    return reject(400, 'Figura no válida.')
   try {
-    const pdf = await readFile('server-data/pro/' + id + '.pdf')
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', 'inline; filename="MathX-Simulacro-Pro.pdf"')
-    res.setHeader('Content-Length', pdf.length)
-    res.end(req.method === 'HEAD' ? undefined : pdf)
+    const filename = asset ? asset + '.webp' : 'questions.json'
+    const content = await readFile('server-data/pro-es/' + id + '/' + filename)
+    res.setHeader('Content-Type', asset ? 'image/webp' : 'application/json; charset=utf-8')
+    res.setHeader('Content-Length', content.length)
+    res.end(req.method === 'HEAD' ? undefined : content)
   } catch (error) {
-    return reject(error.code === 'ENOENT' ? 404 : 503, 'No se pudo abrir el cuadernillo.')
+    return reject(error.code === 'ENOENT' ? 404 : 503, 'No se pudo cargar el material de la prueba.')
   }
 }

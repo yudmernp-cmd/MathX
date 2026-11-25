@@ -172,7 +172,7 @@ export function Setup({
           {isExam && (
             <p className="exam-format">
               {mode === 'Simulacro Pro'
-                ? 'Un cuadernillo completo de una convocatoria anterior, seleccionado al azar.'
+                ? 'Resuelve un examen real de una convocatoria anterior en español, con sus figuras originales.'
                 : config.paper === 1
                 ? '12 preguntas cortas. Seis originales y seis variantes de examen.'
                 : '6 problemas extensos. Tres originales y tres variantes de examen.'}

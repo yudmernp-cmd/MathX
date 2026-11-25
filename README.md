@@ -33,7 +33,7 @@ La compilación prepara la reserva en SQLite y el sitio en `dist`. Vercel empaqu
 
 El alumno elige Prueba 1 o Prueba 2 y recibe un cuadernillo completo al azar de la carpeta de Drive del aula. Las copias idénticas cuentan una sola vez en el sorteo. La sesión dura 90 minutos y conserva el cuadernillo y las respuestas al recargar la misma pestaña. El resultado queda disponible para repaso personal, sin calificación automática.
 
-La compilación prepara los PDF privados con Python 3 y reutiliza la colección local verificada en `server-data/pro`. Para incorporar cambios de Drive, ejecuta `npm run pro:prepare -- --refresh` antes de compilar. El navegador recibe únicamente el documento asignado a la cuenta.
+La compilación extrae los enunciados de los PDF privados y los traduce al español con el modelo inglés-español de Argos en CPU. Conserva la numeración, los puntajes y las figuras originales. La interfaz presenta una pregunta a la vez y guarda las respuestas por separado. La API comprueba la asignación antes de servir el texto o una figura. Para actualizar la colección desde Drive, ejecuta `npm run pro:prepare -- --refresh`. La preparación utiliza Python 3.12 con dependencias aisladas y reutiliza la edición local cuando coinciden la fuente y la versión del importador.
 
 ## Banco del aula
 

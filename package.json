@@ -12,7 +12,7 @@
     "bank:prepare": "tsx tools/prepare.ts",
     "predev": "npm run bank:prepare && npm run pro:prepare",
     "bank:report": "node tools/availability.mjs",
-    "pro:prepare": "python3 tools/pro_papers.py"
+    "pro:prepare": "python3 tools/prepare_pro.py"
   },
   "engines": {
     "node": "24.x"
