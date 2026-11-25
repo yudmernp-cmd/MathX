@@ -417,3 +417,27 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
     await ctx.close()
   }
 })
+
+test('un estado de sesión lento permite entrar sin cerrar la sesión recién iniciada', async ({ page }) => {
+  test.skip(!!process.env.MATHX_TEST_URL, 'Usa el aula local de pruebas.')
+  let release!: () => void
+  const delayed = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/api/classroom?action=status', async (route) => {
+    await delayed
+    await route.fulfill({ json: { authenticated: false, expires: 0 } })
+  })
+  try {
+    await page.goto('/')
+    await button(page, 'Administración').click()
+    await page.getByLabel('Clave de administración').fill(process.env.MATHX_ADMIN_PASSWORD!)
+    await button(page, 'Entrar al aula').click()
+    await expect(page.getByRole('heading', { name: 'Panel del profesor' })).toBeVisible()
+    const status = page.waitForResponse(r => r.url().endsWith('action=status'))
+    release()
+    await status
+    await page.getByLabel('Título', { exact: true }).fill('Pregunta de prueba')
+    await expect(page.getByLabel('Título', { exact: true })).toHaveValue('Pregunta de prueba')
+  } finally {
+    release()
+  }
+})

@@ -74,13 +74,6 @@ export default async function handler(req, res) {
     const revision = process.env.VERCEL_GIT_COMMIT_SHA
     if (revision && /^[0-9a-f]{40}$/.test(revision))
       res.setHeader('X-MathX-Revision', revision.slice(0, 12))
-    try {
-      bank()
-    } catch {
-      return send(503, {
-        error: 'El banco del aula está pendiente de instalación.',
-      })
-    }
   }
   if ((process.env.MATHX_SESSION_SECRET?.length || 0) < 32) {
     return send(503, {

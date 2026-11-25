@@ -11,7 +11,6 @@ import { themes, type Config, type Theme } from './math/model'
 import { drillThemeName } from './math/drills'
 import type { Mode } from './math/session'
 
-export type Catalog = { paper: 1 | 2; theme: Theme; topic: string }[]
 function Select({
   label,
   value,

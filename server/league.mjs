@@ -193,14 +193,24 @@ export async function identify({ admin, password, dni, name, code }) {
   )
     fail(401, 'Credenciales incorrectas.')
   const id = sign('dni', dni)
+  const valid = (student) =>
+    matches(student.pin, sign('pin', [id, code])) &&
+    nameKey(name) === nameKey(student.name)
+  const denied = 'Credenciales incorrectas o acceso temporalmente bloqueado.'
+  // Most logins only read the account. Reserve a conditional write for
+  // recording a failed attempt or clearing an existing failure counter.
+  const authenticated = await state((s) => {
+    const student = s.students[id]
+    if (!student || student.until > Date.now()) fail(401, denied)
+    return !student.failures && !student.until && valid(student)
+  })
+  if (authenticated) return id
   const ok = await state((s) => {
     const p = s.students[id]
     if (!p || p.until > Date.now()) return false
-    if (
-      !matches(p.pin, sign('pin', [id, code])) ||
-      nameKey(name) !== nameKey(p.name)
-    ) {
-      if (++p.failures >= 5) {
+    if (!valid(p)) {
+      p.failures = (p.failures ?? 0) + 1
+      if (p.failures >= 5) {
         p.until = Date.now() + 600000
         p.failures = 0
       }
@@ -210,8 +220,7 @@ export async function identify({ admin, password, dni, name, code }) {
     p.until = 0
     return true
   }, true)
-  if (!ok)
-    fail(401, 'Credenciales incorrectas o acceso temporalmente bloqueado.')
+  if (!ok) fail(401, denied)
   return id
 }
 export function boards() {

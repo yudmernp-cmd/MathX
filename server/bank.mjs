@@ -54,9 +54,10 @@ export function bank() {
       'exam-originals.cjs',
     ),
   )
-  const index = db
+  const readIndex = (realOnly) => db
     .prepare(
-      'SELECT id,paper,origin,theme,topic,level,marks,similarity,fingerprint,payload FROM items ORDER BY id',
+      `SELECT id,paper,origin,theme,topic,level,marks,similarity,fingerprint,payload
+       FROM items ${realOnly ? "WHERE origin='real'" : ''} ORDER BY id`,
     )
     .all()
     .map((row) => {
@@ -73,6 +74,8 @@ export function bank() {
         wordingKey: wordingKey(q),
       }
     })
+  const realRows = readIndex(true)
+  let fullIndex
   const catalog = db
     .prepare(
       'SELECT DISTINCT paper,theme,topic FROM items ORDER BY theme,topic',
@@ -97,14 +100,16 @@ export function bank() {
     source(id) {
       return reviewed.get(id)?.question
     },
-    index,
+    get index() {
+      return fullIndex ??= readIndex(false)
+    },
     questions(config, sim, recent, seed, draw = 0, offset = seed % 330) {
       const rng = random(seed)
       const seen = new Set(recent)
       if (!sim) return [individual(config, seen, rng, draw, offset)]
 
       const actual = new Map()
-      const rows = index.filter(
+      const rows = realRows.filter(
         (row) => row.paper === config.paper && reviewed.has(row.id),
       )
       for (const q of examOriginals(config.paper, seed)) {

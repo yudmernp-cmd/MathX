@@ -1,3 +1,4 @@
+import 'katex/dist/katex.min.css'
 import { scaleLinear } from 'd3-scale'
 import { line } from 'd3-shape'
 import katex from 'katex'
