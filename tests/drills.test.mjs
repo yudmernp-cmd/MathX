@@ -117,3 +117,27 @@ test('variantes y comprobación de resultados en aritmética, análisis, geometr
   assert.ok(acceptsDrill(get('Funciones', 1, 'dominio_rango'), 'y<=66/2'))
   assert.ok(!acceptsDrill(get('Funciones', 1, 'dominio_rango'), 'y<33'))
 })
+
+test('formas equivalentes de la recta de los cortes (68,0) y (0,8)', () => {
+  const q = { tipo_tarea: 'ecuacion_recta', respuesta: 'y=-\\frac{2}{17}x+8' }
+  for (const answer of [
+    'y=8−2x/17', 'f(x) = 8 − (2x ÷ 17)', '2x + 17y = 136',
+    'x/68 + y/8 = 1', 'y = −(2/17)(x−68)', '−\\dfrac{2}{17}x+8',
+  ]) assert.ok(acceptsDrill(q, answer), answer)
+  for (const answer of ['y=2x/17-8', 'y=8+2x/17', 'y=(8-2x)/17', '2x+17y=0', 'xy=8', '0=0'])
+    assert.ok(!acceptsDrill(q, answer), answer)
+})
+
+test('intervalos, coordenadas y raíces conservan su significado al cambiar la notación', () => {
+  const accepts = (respuesta, raw) => acceptsDrill({ tipo_tarea: '', respuesta }, raw)
+  assert.ok(accepts('[-2,3]', '3 ≥ x ≥ −2'))
+  assert.ok(accepts('[-2,3]', 'x ∈ [−2; 3]'))
+  assert.ok(accepts('[1.5,3]', '1,5 ≤ x ≤ 3'))
+  assert.ok(!accepts('[-2,3]', '−2 < x ≤ 3'))
+  assert.ok(accepts('[2,\\infty)', '2 <= x'))
+  assert.ok(accepts('(1.5,2)', '(1,5; 2)'))
+  assert.ok(!accepts('(1.5,2)', '(2; 1,5)'))
+  assert.ok(accepts('\\{3,7\\}', 'x = 5 ± 2'))
+  assert.ok(accepts('\\{3,7\\}', 'x=7 o x=3'))
+  assert.ok(!accepts('\\{3,7\\}', 'x=5±3'))
+})

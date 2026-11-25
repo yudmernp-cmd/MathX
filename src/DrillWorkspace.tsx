@@ -78,8 +78,13 @@ export function DrillWorkspace({
             setError('')
             try {
               const { signature, ...drill } = q
-              await request('submit', { signature, drill, answer })
-              change({ drillChecked: { ...run.drillChecked, [id]: true } })
+              const result = await request<{ correct: boolean }>('submit', {
+                signature, drill, answer,
+              })
+              change({
+                drillChecked: { ...run.drillChecked, [id]: true },
+                drillResults: { ...run.drillResults, [id]: result.correct },
+              })
             } catch (e) {
               setError((e as Error).message)
             } finally {
@@ -90,6 +95,7 @@ export function DrillWorkspace({
           <input
             id="drill-answer"
             autoComplete="off"
+            readOnly={saving}
             placeholder="Tu respuesta"
             value={answer}
             onChange={(e) =>
@@ -111,9 +117,11 @@ export function DrillWorkspace({
           {error && <p role="alert">{error}</p>}
           {checked && (
             <p role="status" className="feedback">
-              {acceptsDrill(q, answer)
+              {(run.drillResults?.[id] ?? acceptsDrill(q, answer))
                 ? 'Resultado correcto'
-                : 'Revisa tu respuesta.'}
+                : q.tipo_tarea === 'ecuacion_recta'
+                  ? 'Revisa la pendiente y el corte con el eje y. Sustituye las coordenadas de cada punto en tu ecuación.'
+                  : 'Revisa tu respuesta.'}
             </p>
           )}
           <div className="actions">

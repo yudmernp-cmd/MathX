@@ -99,6 +99,11 @@ test('tanda de 15, corrección, soluciones, navegación y otra tanda', async ({
   await expect(
     page.getByText('Ejercicio 1 de 15', { exact: true }),
   ).toBeVisible()
+  await page.getByText('Símbolos matemáticos', { exact: true }).click()
+  for (const symbol of ['y', '=', '−', 'x', '/', 'x', '+', 'x'])
+    await button(page, symbol).click()
+  await expect(page.getByPlaceholder('Tu respuesta')).toHaveValue('y=−x/x+x')
+  await page.getByText('Símbolos matemáticos', { exact: true }).click()
   const used = new Set((await saved(page)).questions.map((q) => q.wordingKey))
   for (let i = 0; i < 15; i++) {
     await expect(

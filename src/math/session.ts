@@ -15,6 +15,7 @@ export type Run = {
   index: number
   answers: Record<string, string>
   notes: Record<string, string>
+  drillResults?: Record<string, boolean>
   drillChecked?: Record<string, boolean>
   checked: boolean
   finished: boolean

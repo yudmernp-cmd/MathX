@@ -81,6 +81,11 @@ function plain(s: string) {
     .replace(/\\(?:left|right)/g, '')
     .replace(/\\[,;! ]/g, '')
     .replace(/\\(?:cdot|times)|[·×]/g, '*')
+    .replace(/\\div|[÷⁄]/g, '/')
+    .replace(/\\[dt]frac/g, '\\frac')
+    .replace(/\\pm/g, '±')
+    .replace(/\\leq?|<=/g, '≤')
+    .replace(/\\geq?|>=/g, '≥')
     .replace(/\\pi|π/g, 'pi')
     .replace(/\\infty|∞/g, 'inf')
     .replace(/\^?\\circ|°/g, '')
@@ -173,9 +178,11 @@ function polynomial(input: string, affine = false): Poly {
   return p
 }
 const equal = (x: number, y: number) =>
+  Number.isFinite(x) && Number.isFinite(y) &&
   Math.abs(x - y) <= 1e-10 * Math.max(1, Math.abs(x), Math.abs(y))
 function relation(s: string) {
-  const eq = s.includes('=') ? s : 'y=' + s
+  const expression = s.replace(/^f\(x\)=/i, 'y=')
+  const eq = expression.includes('=') ? expression : 'y=' + expression
   const [lhs, rhs, ...extra] = eq.split('=')
   if (extra.length || !rhs) throw Error()
   const p = plus(polynomial(lhs, true), polynomial(rhs, true), -1)
@@ -183,15 +190,56 @@ function relation(s: string) {
     throw Error()
   return [-(p[0] ?? 0) / p[18], -(p[1] ?? 0) / p[18]]
 }
-function components(s: string) {
-  const parts = s.includes(';') ? s.split(';') : s.split(',')
-  return parts.map((x) => readNumber(x))
+function splitValues(s: string) {
+  return s.split(s.includes(';') ? ';' : ',')
+}
+function interval(s: string) {
+  const value = s.toLowerCase().replace(/^[xy]∈/, '')
+    .replace(/infinito|infinity/g, 'inf').replace(/\+inf/g, 'inf')
+  const terms = value.split(/([<>≤≥])/)
+  if (terms.length === 1) {
+    const open = value[0] === ']' ? '(' : value[0]
+    const end = value.at(-1) === '[' ? ')' : value.at(-1)
+    const bounds = splitValues(value.slice(1, -1))
+    if (bounds.length !== 2 || !['(', '['].includes(open) || ![')', ']'].includes(end ?? ''))
+      throw Error()
+    return { open, end, bounds }
+  }
+  // Put inequalities in increasing order, including reversed chains such as 3 ≥ x > 1.
+  if (terms[1] === '>' || terms[1] === '≥') {
+    terms.reverse()
+    for (let i = 1; i < terms.length; i += 2) {
+      if (terms[i] !== '>' && terms[i] !== '≥') throw Error()
+      terms[i] = terms[i] === '>' ? '<' : '≤'
+    }
+  }
+  if (terms.length === 3) {
+    if (/^[xy]$/.test(terms[0])) terms.unshift('-inf', '<')
+    else terms.push('<', 'inf')
+  }
+  const [lo, left, variable, right, hi] = terms
+  if (terms.length !== 5 || !/^[xy]$/.test(variable) ||
+      !['<', '≤'].includes(left) || !['<', '≤'].includes(right)) throw Error()
+  return { open: left === '<' ? '(' : '[', end: right === '<' ? ')' : ']', bounds: [lo, hi] }
+}
+function components(s: string, roots: boolean) {
+  if (roots) {
+    s = s.replace(/^x∈/i, '')
+  }
+  if ((s.startsWith('(') && s.endsWith(')')) || (roots && s.startsWith('{') && s.endsWith('}')))
+    s = s.slice(1, -1)
+  if (!roots) return splitValues(s).map(readNumber)
+  if (s.includes('±')) {
+    const expression = s.replace(/^x=/i, '')
+    return ['+', '-'].map(sign => readNumber(expression.replace('±', sign)))
+  }
+  return splitValues(s).map(part => readNumber(part.replace(/^x=/i, '')))
 }
 export function acceptsDrill(q: Drill, raw: string): boolean {
   try {
     if (!raw.trim() || raw.length > 200) return false
-    let s = plain(raw),
-      t = plain(q.respuesta)
+    let t = plain(q.respuesta)
+    let s = plain(t.startsWith('{') ? raw.replace(/\s+o\s+/gi, ';') : raw)
     if (q.tipo_tarea === 'notacion_cientifica') {
       const m = s.match(
         /^([1-9](?:[.,]\d+)?)(?:\*10\^\(?([+-]?\d+)\)?|e([+-]?\d+))$/i,
@@ -204,31 +252,11 @@ export function acceptsDrill(q: Drill, raw: string): boolean {
         return false
     }
     if (t.includes('inf') || t.startsWith('[')) {
-      const normalize = (v: string) =>
-        v
-          .replace(/infinito|infinity/gi, 'inf')
-          .replace(/\+inf/g, 'inf')
-          .replace(/;/g, ',')
-          .replace(/^\]([\s\S]*)/, '($1')
-          .replace(/\[$/, ')')
-      const inequality = s.match(/^[xy](>=|≥|<=|≤|<|>)(.+)$/)
-      if (inequality) {
-        const [, op, v] = inequality
-        if (['>=', '≥'].includes(op)) s = '[' + v + ',inf)'
-        else if (op === '>') s = '(' + v + ',inf)'
-        else if (['<=', '≤'].includes(op)) s = '(-inf,' + v + ']'
-        else s = '(-inf,' + v + ')'
-      }
-      const actual = normalize(s),
-        target = normalize(t)
-      if (actual[0] !== target[0] || actual.at(-1) !== target.at(-1))
-        return false
-      const endpoints = (v: string) => v.slice(1, -1).split(',')
-      const a = endpoints(actual),
-        b = endpoints(target)
+      const actual = interval(s), target = interval(t)
+      if (actual.open !== target.open || actual.end !== target.end) return false
+      const b = target.bounds
       return (
-        a.length === 2 &&
-        a.every((v, i) => {
+        actual.bounds.every((v, i) => {
           if (v === b[i]) return true
           const x = readNumber(v),
             y = readNumber(b[i])
@@ -238,8 +266,7 @@ export function acceptsDrill(q: Drill, raw: string): boolean {
     }
     if (t.startsWith('{') || (t.startsWith('(') && t.includes(','))) {
       const unordered = t.startsWith('{')
-      const a = components(s.replace(/^[({]|[)}]$/g, '')),
-        b = components(t.slice(1, -1))
+      const a = components(s, unordered), b = components(t, unordered)
       if (
         a.length !== b.length ||
         a.some((x) => x === null) ||
