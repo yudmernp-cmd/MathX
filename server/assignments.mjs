@@ -1,5 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import { state, accountState, ClassroomError, examPrompts } from './league.mjs'
+import { resultLinks } from './exam-results.mjs'
 import { bank } from './bank.mjs'
 const fail = (message, status = 400) => {
   throw new ClassroomError(status, message)
@@ -195,7 +196,9 @@ export async function assignments(id, action, b = {}, identity) {
         stats: p.stats ?? {},
         weeks: p.weeks ?? {},
       })
-      if (!admin) return { tasks: rows, profile: profile(s.students[id]) }
+      const results = resultLinks(s, { id, admin })
+      const photo = (admin ? s.adminPhoto : s.students[id].photo) ?? null
+      if (!admin) return { tasks: rows, results, photo, profile: profile(s.students[id]) }
       const reviews = [],
         alerts = []
       for (const a of all)
@@ -223,7 +226,7 @@ export async function assignments(id, action, b = {}, identity) {
           }
         }
       return {
-        tasks: rows,
+        tasks: rows, results, photo,
         legacyRound: !!s.round,
         reviews: reviews.sort((a, b) => b.time - a.time),
         alerts: alerts.sort((a, b) => b.at - a.at).slice(0, 100),
@@ -334,7 +337,7 @@ export async function assignments(id, action, b = {}, identity) {
     }
     if (!['beginTask', 'inspect', 'myTask'].includes(action))
       fail('Acción inválida.')
-    const reveal = admin || now >= a.closes
+    const reveal = admin || now >= a.closes || (a.kind === 'exam' && done)
     return {
       ...summary(a),
       ...(snapshot && a.kind === 'exam' && { paper: snapshot.paper }),

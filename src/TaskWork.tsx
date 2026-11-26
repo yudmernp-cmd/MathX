@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { MathText, DataFigure } from './Figures'
+import { ExamResults } from './ExamResults'
 import { MathKeys } from './MathKeys'
 import { partMarks, points, type Problem } from './math/model'
 import { task, type Attempt, type Grade } from './learning'
@@ -228,6 +229,7 @@ export function TaskWork({
   }, [active, challenge, id])
   const q = a.questions[index]
   const topics = Array.from(new Set(a.questions.map((q) => q.theme ?? q.topic)))
+  if (!challenge && locked && !review) return <ExamResults source={{ id: a.id, assigned: true }} leave={leave}/>
   return (
     <section className="panel task-work">
       <button
@@ -249,7 +251,7 @@ export function TaskWork({
       <p>
         {challenge
           ? 'Reto diario · Avanzado · 20 puntos'
-          : 'Simulacro · Prueba ' + a.paper + ' · 80 puntos'}
+          : 'Prueba tipo IB · Prueba ' + a.paper + ' · 80 puntos'}
         {review && ' · ' + review.name}
       </p>
       {active && (
@@ -342,7 +344,7 @@ export function TaskWork({
         </details>
       )}
       {a.questions.length > 1 && (
-        <nav className="task-pages" aria-label="Preguntas del simulacro">
+        <nav className="task-pages" aria-label="Preguntas de la prueba">
           {a.questions.map((_, i) => (
             <button
               key={i}
@@ -428,7 +430,7 @@ export function TaskWork({
               void finish()
           }}
         >
-          Entregar {challenge ? 'reto' : 'simulacro'}
+          Entregar {challenge ? 'reto' : 'prueba tipo IB'}
         </button>
       )}
       {review && (

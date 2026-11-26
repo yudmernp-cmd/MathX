@@ -13,6 +13,12 @@ SKIP = re.compile(
     re.I,
 )
 
+# This full-width graph shares its outer frame with the answer-box drawings
+# excluded below. Include its plot and scale together when extracting the page.
+GRAPH_REGIONS = {
+    ("553d41dd4238860249bbf15a4373df1eed2369ada127dd3861a50a032b51eaee", 20):
+        (46, 160, 551, 289),
+}
 
 def clean(value):
     return " ".join(
@@ -207,11 +213,15 @@ def extract_paper(path, directory):
                     and not (r.width > 490 and r.x0 < 48)
                 ]
                 visuals.extend(pdf.Rect(img["bbox"]) for img in page.get_image_info())
+                extra_graph = GRAPH_REGIONS.get((path.stem, page.number))
 
                 def gap(y0, y1):
                     if y1 <= y0 + 1:
                         return
                     region = pdf.Rect(area.x0, y0, area.x1, y1)
+                    if extra_graph and region.contains(pdf.Rect(extra_graph)):
+                        blocks.append(picture(page, extra_graph, directory))
+                        return
                     pieces = [r & region for r in visuals if r.intersects(region)]
                     for r, txt, _ in items:
                         if (

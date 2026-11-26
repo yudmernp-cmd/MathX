@@ -1,2 +1,2 @@
 export { acceptsDrill } from '../src/math/drills'
-export { correct } from '../src/math/grading'
+export { correct, answerNumber } from '../src/math/grading'

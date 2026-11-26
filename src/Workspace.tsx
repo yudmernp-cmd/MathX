@@ -1,3 +1,4 @@
+import { ExamResults } from './ExamResults'
 import { MathKeys } from './MathKeys'
 import {
   ArrowLeft,
@@ -52,7 +53,8 @@ export function Workspace({ run, change, home, another }: Props) {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
   if (run.ticket && run.finished && !run.sent)
-    return <p role="status">Entrega del simulacro pendiente de confirmación.</p>
+    return <p role="status">Entrega de la prueba pendiente de confirmación.</p>
+  if (run.finished && run.resultId) return <ExamResults source={{ id: run.resultId }} leave={home}/>
   const showSolutions = run.finished || solution
   return (
     <div className="workspace">
@@ -73,8 +75,8 @@ export function Workspace({ run, change, home, another }: Props) {
           <h1>
             {sim
               ? run.finished
-                ? 'Revisión del simulacro'
-                : 'Simulacro en curso'
+                ? 'Revisión de la prueba tipo IB'
+                : 'Prueba tipo IB en curso'
               : 'Ejercicio individual'}
           </h1>
           <div className="work-meta">
@@ -102,7 +104,7 @@ export function Workspace({ run, change, home, another }: Props) {
           <CheckCircle2 />
           <div>
             <b>
-              {sim ? 'Resultado del simulacro' : 'Comprobación del ejercicio'}
+              {sim ? 'Resultado de la prueba tipo IB' : 'Comprobación del ejercicio'}
             </b>
             <p>
               {scores.verified}{' '}
@@ -389,7 +391,7 @@ export function Workspace({ run, change, home, another }: Props) {
                 </button>
               ) : (
                 <button className="primary" onClick={() => setDialog('finish')}>
-                  Finalizar simulacro
+                  Finalizar prueba tipo IB
                 </button>
               )}
             </div>
@@ -435,7 +437,7 @@ export function Workspace({ run, change, home, another }: Props) {
             </p>
             {!run.finished && (
               <button className="secondary" onClick={() => setDialog('finish')}>
-                Finalizar simulacro
+                Finalizar prueba tipo IB
                 <ArrowRight size={16} />
               </button>
             )}
@@ -449,13 +451,13 @@ export function Workspace({ run, change, home, another }: Props) {
           }}
           onCancel={() => setDialog(null)}
           aria-label={
-            dialog === 'exit' ? 'Salir del simulacro' : 'Finalizar simulacro'
+            dialog === 'exit' ? 'Salir de la prueba' : 'Finalizar prueba tipo IB'
           }
         >
           <h2>
             {dialog === 'exit'
-              ? '¿Descartar este simulacro?'
-              : '¿Finalizar el simulacro?'}
+              ? '¿Descartar esta prueba?'
+              : '¿Finalizar la prueba?'}
           </h2>
           <p>
             {dialog === 'exit'

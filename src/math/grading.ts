@@ -98,6 +98,8 @@ const unitSuffix: Record<string, RegExp> = {
   'cm²': /\s*(?:centímetros? cuadrados?|cm(?:²|\^?2))$/iu,
   'L/min': /\s*(?:l\s*\/\s*min|litros? por minuto)$/iu,
   'm²': /\s*(?:metros? cuadrados?|m(?:²|\^?2))$/iu,
+  kg: /\s*(?:kilogramos?|kg)$/iu,
+  'm³': /\s*(?:metros? cúbicos?|m(?:³|\^?3))$/iu,
   'cm³': /\s*(?:centímetros? cúbicos?|cm(?:³|\^?3))$/iu,
   '°': /\s*(?:grados?|°)$/iu,
   L: /\s*(?:litros?|l)$/iu,

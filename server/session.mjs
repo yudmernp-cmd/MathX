@@ -32,3 +32,5 @@ export function session(req) {
 }
 
 export const paperSignature = (owner, id) => mac('pro-paper-v1:' + owner + ':' + id)
+
+export const paperViewSignature = (owner, id) => mac('pro-view-v2:' + owner + ':' + id)

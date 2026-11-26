@@ -1,9 +1,13 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { ExamResults, type ExamReport } from './ExamResults'
+import { request, ApiError } from './request'
 import { MathKeys } from './MathKeys'
 
 export type ProPaper = {
   id: string
   signature: string
+  ticket?: string
+  resultId?: string
   title: string
   paper: 1 | 2
   deadline: number
@@ -46,12 +50,16 @@ export function ProExam({ attempt, update, leave, onExpired }: {
   const [questions, setQuestions] = useState<Question[]>([])
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+  const [report, setReport] = useState<ExamReport>()
+  const [sendError, setSendError] = useState('')
+  const [sendRetry, setSendRetry] = useState(0)
   const heading = useRef<HTMLHeadingElement>(null)
   const seconds = Math.max(0, Math.ceil((attempt.deadline - now) / 1000))
   const closed = attempt.finished || seconds === 0
   const url = '/api/pro-paper?' + new URLSearchParams({ id: attempt.id, signature: attempt.signature })
 
   useEffect(() => {
+    if (closed) return
     const controller = new AbortController()
     setError('')
     setQuestions([])
@@ -67,13 +75,32 @@ export function ProExam({ attempt, update, leave, onExpired }: {
       if (!controller.signal.aborted) setError('No se pudieron cargar las preguntas.')
     })
     return () => controller.abort()
-  }, [url, retry, onExpired])
+  }, [url, retry, onExpired, closed])
   useEffect(() => {
     if (closed) return
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [closed])
 
+  useEffect(() => {
+    if (!closed || attempt.resultId) return
+    if (!attempt.finished) { update({ ...attempt, finished: true }); return }
+    let live = true
+    setSendError('')
+    request<ExamReport>('report', {
+      action: 'finishPro', proId: attempt.id, signature: attempt.signature, ticket: attempt.ticket,
+      deadline: attempt.deadline, answers: attempt.responses, legacyNotes: attempt.legacyNotes,
+    }).then(r => { if (live) { setReport(r); update({ ...attempt, resultId: r.ref.id }) } })
+      .catch(e => { if (live) { if (e instanceof ApiError && e.status === 401) onExpired(); else setSendError(e.message) } })
+    return () => { live = false }
+  }, [closed, attempt, update, sendRetry, onExpired])
+
+  if (closed) {
+    if (report || attempt.resultId) return <ExamResults source={report ?? { id: attempt.resultId! }} leave={leave}/>
+    return <section className="panel"><h1>Simulacro finalizado</h1>{sendError
+      ? <p role="alert">{sendError} <button className="secondary" onClick={()=>setSendRetry(v=>v+1)}>Reintentar entrega</button></p>
+      : <p role="status">Preparando tu solucionario…</p>}</section>
+  }
   const current = Math.min(attempt.current, questions.length - 1)
   const question = questions[current]
   function go(index: number) {
@@ -81,7 +108,7 @@ export function ProExam({ attempt, update, leave, onExpired }: {
     requestAnimationFrame(() => heading.current?.focus())
   }
   function answer(key: string, value: string) {
-    if (!attempt.finished && Date.now() < attempt.deadline)
+    if (Date.now() < attempt.deadline)
       update({ ...attempt, responses: { ...attempt.responses, [key]: value } })
   }
   const hasParts = question?.blocks.some(b => b.answer && b.answer !== 'question')
@@ -92,9 +119,9 @@ export function ProExam({ attempt, update, leave, onExpired }: {
     const label = whole ? 'pregunta ' + question.number : 'inciso ' + part.split('.').map(s => '(' + s + ')').join('')
     return <div className="pro-answer">
       <label htmlFor={id}>Respuesta y procedimiento · {label}</label>
-      <textarea id={id} rows={3} value={attempt.responses[key] ?? ''}
-        readOnly={closed} onChange={e => answer(key, e.target.value)} />
-      {!closed && <MathKeys target={id} change={value => answer(key, value)} />}
+      <textarea id={id} rows={3} maxLength={16000} value={attempt.responses[key] ?? ''}
+        onChange={e => answer(key, e.target.value)} />
+      <MathKeys target={id} change={value => answer(key, value)} />
     </div>
   }
   function figure(f: Figure, inline: boolean, key: number) {
@@ -107,11 +134,11 @@ export function ProExam({ attempt, update, leave, onExpired }: {
     <section className="panel pro-exam" lang="es">
       <h1>Simulacro Pro · Prueba {attempt.paper}</h1>
       <p>{attempt.title} · 80 puntos · Traducción automática al español</p>
-      <p className="timer">{closed ? 'Simulacro finalizado' :
-        'Tiempo restante ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0')}</p>
+      <p className="timer">{'Tiempo restante ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0')}</p>
       {error ? <div role="alert">{error} <button onClick={() => setRetry(r => r + 1)}>Reintentar</button></div> :
         !question && <p role="status">Cargando preguntas…</p>}
       {question && <>
+        <p>Si escribes el procedimiento, coloca tu respuesta final en la última línea de cada inciso.</p>
         <nav className="pro-navigation" aria-label="Preguntas del simulacro">
           {questions.map((q, i) => <button key={q.number} aria-label={'Pregunta ' + q.number}
             aria-current={i === current ? 'step' : undefined} onClick={() => go(i)}>{q.number}</button>)}
@@ -139,11 +166,10 @@ export function ProExam({ attempt, update, leave, onExpired }: {
       </>}
       {attempt.legacyNotes && <details><summary>Respuestas guardadas en la versión anterior</summary>
         <p className="preserve-lines">{attempt.legacyNotes}</p></details>}
-      {closed ? <button className="secondary" onClick={leave}>Volver a la configuración</button> :
-        <button className="primary" onClick={() => {
+      <button className="primary" onClick={() => {
           if (window.confirm('¿Finalizar este simulacro y cerrar tus respuestas?'))
             update({ ...attempt, finished: true })
-        }}>Finalizar simulacro</button>}
+        }}>Finalizar simulacro</button>
     </section>
   )
 }

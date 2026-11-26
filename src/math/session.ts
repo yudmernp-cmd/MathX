@@ -5,6 +5,7 @@ export type Mode = 'Ejercicios' | 'Simulacros'
 export type Run = {
   owner?: string
   ticket?: string | null
+  resultId?: string
   counted?: boolean
   sent?: boolean
   config: Config

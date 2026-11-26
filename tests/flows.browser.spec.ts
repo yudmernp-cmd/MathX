@@ -14,7 +14,7 @@ const profiles = new WeakMap<
   Page,
   { name: string; code: string }
 >()
-async function login(page: Page) {
+async function login(page: Page, localName = 'Estudiante de prueba') {
   await page.goto('/')
   await expect(page.getByLabel('Código personal')).toBeVisible()
   await expect(page.getByLabel('DNI')).toHaveCount(0)
@@ -40,7 +40,7 @@ async function login(page: Page) {
           })
         ).ok(),
       ).toBeTruthy()
-      const name = 'Estudiante de prueba'
+      const name = localName
       const r = await api('enroll', { name })
       expect(r.ok()).toBeTruthy()
       profile = { name, code: (await r.json()).code }
@@ -171,16 +171,16 @@ test('dos pestañas y una sesión nueva evitan repetir enunciados', async ({
 })
 for (const paper of [1, 2]) {
   test(
-    'simulacro P' + paper + ' con la edición instalada, reloj y entrega',
+    'prueba tipo IB P' + paper + ' con la edición instalada, reloj y entrega',
     async ({ page }) => {
       await login(page)
-      await button(page, 'Simulacros').click()
+      await button(page, 'Pruebas tipo IB').click()
       await expect(page.getByLabel('Tema', { exact: true })).toHaveCount(0)
       await button(page, 'Prueba ' + paper).click()
       const response = page.waitForResponse((r) =>
         r.url().includes('action=exam'),
       )
-      await button(page, 'Empezar simulacro').click()
+      await button(page, 'Empezar prueba tipo IB').click()
       const status = (await response).status()
       if (
         !process.env.MATHX_TEST_URL &&
@@ -204,29 +204,35 @@ for (const paper of [1, 2]) {
       )
       expect(run.deadline - Date.now()).toBeGreaterThan(89 * 60000)
       expect(run.deadline - Date.now()).toBeLessThanOrEqual(90 * 60000)
-      const index = qs.findIndex(
-        (q) => q.origin === 'adapted' && q.parts.some((p) => p.value !== null),
-      )
+      expect(qs.every(q => q.parts.every(p =>
+        p.value === null && p.steps.length === 0 && p.rubric.length === 0,
+      ))).toBe(true)
+      const index = qs.findIndex(q => q.parts.some(p => p.numeric))
+      expect(index).toBeGreaterThanOrEqual(0)
       await button(page, 'Pregunta ' + (index + 1)).click()
-      const j = qs[index].parts.findIndex((p) => p.value !== null)
+      const j = qs[index].parts.findIndex((p) => p.numeric)
       const field = page.locator('#answer' + index + '-' + j)
-      await field.fill(String(qs[index].parts[j].value))
+      await field.fill('987654321')
       await page.reload()
-      await expect(field).toHaveValue(String(qs[index].parts[j].value))
+      await expect(field).toHaveValue('987654321')
       if (paper === 2) {
         await page.clock.install()
         await page.clock.fastForward('01:30:01')
       } else {
         await page
-          .getByRole('button', { name: 'Finalizar simulacro', exact: true })
+          .getByRole('button', { name: 'Finalizar prueba tipo IB', exact: true })
           .first()
           .click()
         await button(page, 'Confirmar finalización').click()
       }
-      await expect(page.locator('.result')).toContainText('80 puntos posibles')
-      await expect(page.locator('.result')).toContainText('1 punto verificado')
-      await expect(field).toHaveAttribute('readonly', '')
-      await expect(page.locator('.solution').first()).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Resultados de la prueba' })).toBeVisible()
+      await expect(page.locator('.result-summary')).toContainText('/ 80')
+      await expect(page.locator('.report-question')).toHaveCount(qs.length)
+      await expect(field).toHaveCount(0)
+      const result = page.locator('.report-question').nth(index)
+      if (index > 0) await result.locator(':scope > summary').click()
+      await expect(result.getByText('Respuesta entregada · 987654321')).toBeVisible()
+      await expect(result.locator('.solution').first()).toBeVisible()
     },
   )
 }
@@ -260,7 +266,7 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
   await button(page, 'Inscribir alumno').click()
   await page.getByLabel('Nombre', { exact: true }).fill('Estudiante del top')
   await button(page, 'Crear código personal').click()
-  const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
+  const code = (await page.getByRole('status').locator('strong').innerText()).match(/ · (\d{6})$/)![1]
   await button(page, 'Actividades').click()
   await page.getByLabel('Título', { exact: true }).fill('Reto de áreas')
   await page
@@ -379,15 +385,15 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
         page.getByRole('heading', { name: 'Convocatoria de prueba' }),
       ).toBeVisible()
       await button(student, 'Mi aula').click()
-      await button(student, 'Resolver simulacro').click()
+      await button(student, 'Resolver prueba tipo IB').click()
       await expect(
         student
-          .getByRole('navigation', { name: 'Preguntas del simulacro' })
+          .getByRole('navigation', { name: 'Preguntas de la prueba' })
           .getByRole('button'),
       ).toHaveCount(6)
       await student.getByLabel('Respuesta', { exact: true }).first().fill('2')
       student.once('dialog', (d) => d.accept())
-      await button(student, 'Entregar simulacro').click()
+      await button(student, 'Entregar prueba tipo IB').click()
       await expect(student.getByText('Informe por tema')).toBeVisible()
       await button(page, 'Actualizar aula').click()
       await page
@@ -416,7 +422,7 @@ test('aula del profesor, reto supervisado, notas y convocatoria asignada', async
       await expect(button(page, 'Mostrar top')).toBeVisible()
       await button(student, 'Actualizar clasificaciones').click()
       await expect(
-        student.getByRole('heading', { name: 'Top de simulacros' }),
+        student.getByRole('heading', { name: 'Top de pruebas tipo IB' }),
       ).toHaveCount(0)
     }
   } finally {
@@ -462,6 +468,7 @@ for (const paper of [1, 2]) {
     const questions: { number: number; marks: number; blocks: { answer?: string }[] }[] = await manifest.json()
     expect(questions.reduce((total, q) => total + q.marks, 0)).toBe(80)
     expect(questions.length).toBeGreaterThanOrEqual(paper === 2 ? 5 : 11)
+    expect(JSON.stringify(questions)).not.toMatch(/"(?:steps|rubric|accepted|value)":/)
     const path = manifest.url()
     const id = new URL(path).searchParams.get('id')
     const catalog: { id: string; paper: number }[] = JSON.parse(readFileSync('server-data/pro/catalog.json', 'utf8'))
@@ -479,7 +486,17 @@ for (const paper of [1, 2]) {
     expect((await page.request.get(path + '&asset=..')).status()).toBe(400)
     expect((await page.request.get(path.replace('signature=', 'signature=0'))).status()).toBe(403)
     const multi = questions.find(q => q.blocks.filter(b => b.answer).length >= 2)!
-    const other = questions.find(q => q.number !== multi.number)!
+    type PartKey = { value?: number; marks: number }
+    const guides: Record<string, Record<string, Record<string, PartKey>>> =
+      JSON.parse(readFileSync('server-data/pro-worked.json', 'utf8'))
+    const guide = guides[id!]
+    const other = questions.find(q => q !== multi && q.blocks.some(b => b.answer &&
+      Number.isFinite(guide[q.number][b.answer].value) && guide[q.number][b.answer].marks > 0))!
+    const numericIndex = other.blocks.filter(b => b.answer)
+      .findIndex(b => Number.isFinite(guide[other.number][b.answer!].value) && guide[other.number][b.answer!].marks > 0)
+    const key = other.blocks.filter(b => b.answer)[numericIndex].answer!
+    const expected = guide[other.number][key]
+    const correctAnswer = String(expected.value)
     await button(page, 'Pregunta ' + multi.number).click()
     const fields = page.getByRole('textbox', {name: /Respuesta y procedimiento/})
     await expect(fields).toHaveCount(multi.blocks.filter(b => b.answer).length)
@@ -491,7 +508,7 @@ for (const paper of [1, 2]) {
     await expect(fields.nth(1)).toHaveValue('3π')
     await button(page, 'Pregunta ' + other.number).click()
     await expect(fields.first()).toHaveValue('')
-    await fields.first().fill('Otra pregunta')
+    await fields.nth(numericIndex).fill(correctAnswer)
     await page.evaluate(n => {
       const attempt = JSON.parse(sessionStorage.getItem('mathx.pro.1')!)
       attempt.responses[n] = 'Borrador de la versión anterior'
@@ -499,7 +516,7 @@ for (const paper of [1, 2]) {
     }, multi.number)
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Pregunta ' + other.number + ' de ' + questions.length })).toBeVisible()
-    await expect(fields.first()).toHaveValue('Otra pregunta')
+    await expect(fields.nth(numericIndex)).toHaveValue(correctAnswer)
     await button(page, 'Pregunta ' + multi.number).click()
     await expect(fields.nth(0)).toHaveValue('24')
     await expect(fields.nth(1)).toHaveValue('3π')
@@ -507,9 +524,20 @@ for (const paper of [1, 2]) {
     await expect(page.getByText('Borrador de la versión anterior')).toBeVisible()
     page.once('dialog', dialog => dialog.accept())
     await button(page, 'Finalizar simulacro').click()
-    await expect(page.getByText('Simulacro finalizado')).toBeVisible()
-    for (const field of await fields.all()) await expect(field).not.toBeEditable()
-    await button(page, 'Volver a la configuración').click()
+    await expect(page.getByRole('heading', { name: 'Resultados de la prueba' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Solucionario por pregunta' })).toBeVisible()
+    await expect(fields).toHaveCount(0)
+    const results = page.locator('.report-question')
+    await expect(results).toHaveCount(questions.length)
+    const numericRow = results.nth(other.number - 1)
+    if (other.number !== 1) await numericRow.locator(':scope > summary').click()
+    const part = numericRow.locator('.report-part').nth(numericIndex)
+    await expect(part.getByRole('heading')).toContainText(expected.marks + ' / ' + expected.marks + ' pt')
+    await expect(part.locator('.solution p').first()).toBeVisible()
+    const legacyRow = results.nth(multi.number - 1)
+    if (multi.number !== 1) await legacyRow.locator(':scope > summary').click()
+    await expect(legacyRow.getByText(/Respuesta a la pregunta completa.*Borrador de la versión anterior/)).toBeVisible()
+    await button(page, 'Volver al aula').click()
     await expect(page.getByRole('heading', { name: 'Configura tu práctica' })).toBeVisible()
   })
 }
@@ -524,7 +552,7 @@ test('el administrador gestiona el acceso y el avance de un alumno desde Usuario
   const name = 'Alumno de gestión ' + crypto.randomUUID().slice(-8)
   await page.getByLabel('Nombre', { exact: true }).fill(name)
   await button(page, 'Crear código personal').click()
-  const code = (await page.getByRole('status').innerText()).match(/\d{6}/)![0]
+  const code = (await page.getByRole('status').locator('strong').innerText()).match(/ · (\d{6})$/)![1]
   await button(page, 'Usuarios').click()
   await page.getByLabel('Buscar por nombre').fill(name)
   const row = page.getByRole('button', { name: new RegExp(name + ' Cuenta ') })
@@ -589,4 +617,55 @@ test('el profesor edita y elimina un reto desde la lista de actividades', async 
   page.once('dialog', d=>d.accept())
   await updated.getByRole('button',{name:'Eliminar'}).click()
   await expect(updated).toHaveCount(0)
+})
+
+test('el profesor resuelve una revisión de Simulacro Pro y el alumno recupera su nueva banda', async ({ page, browser }) => {
+  test.skip(!!process.env.MATHX_TEST_URL, 'Usa exclusivamente el aula local de pruebas.')
+  const name = 'Alumno revisión ' + crypto.randomUUID().slice(-8)
+  const answer = 'Mi procedimiento incluye la construcción gráfica.'
+  const reason = 'Revisa mi construcción y la justificación del primer inciso.'
+  const feedback = 'La construcción y la justificación reúnen 11 puntos.'
+  await login(page, name)
+  await button(page, 'Simulacro Pro').click()
+  await button(page, 'Prueba 2').click()
+  await button(page, 'Empezar Simulacro Pro').click()
+  await page.getByRole('textbox', { name: /Respuesta y procedimiento/ }).first().fill(answer)
+  page.once('dialog', dialog => dialog.accept())
+  await button(page, 'Finalizar simulacro').click()
+  const result = page.locator('.report-question').first()
+  await expect(page.locator('.result-summary')).toContainText('0 / 80')
+  await expect(page.locator('.result-summary')).toContainText('1 / 7')
+  await result.getByRole('button', { name: 'Solicitar revisión' }).click()
+  await result.getByRole('textbox').fill(reason)
+  await result.getByRole('button', { name: 'Enviar solicitud' }).click()
+  await expect(result.getByText('Solicitud pendiente de revisión')).toBeVisible()
+  await button(page, 'Volver al aula').click()
+
+  const ctx = await browser.newContext({ baseURL: new URL(page.url()).origin })
+  try {
+    const admin = await ctx.newPage()
+    await admin.goto('/')
+    await button(admin, 'Administración').click()
+    await admin.getByLabel('Clave de administración').fill(process.env.MATHX_ADMIN_PASSWORD!)
+    await button(admin, 'Entrar al aula').click()
+    const submission = admin.locator('article').filter({ has: admin.getByRole('heading', { name: new RegExp(name) }) })
+    await expect(submission).toContainText('Revisión solicitada')
+    await submission.getByRole('button', { name: 'Abrir revisión' }).click()
+    const question = admin.locator('.report-question').first()
+    await expect(question.getByText('Respuesta entregada · ' + answer)).toBeVisible()
+    await expect(question.getByText('Solicitud de revisión · ' + reason)).toBeVisible()
+    await question.getByRole('button', { name: 'Revisar puntos' }).click()
+    await question.getByLabel('Puntos de la pregunta').fill('11')
+    await question.getByLabel('Respuesta al alumno').fill(feedback)
+    await question.getByRole('button', { name: 'Publicar corrección' }).click()
+    await expect(admin.getByText('Puntuación actualizada.')).toBeVisible()
+    await button(page, 'Mi aula').click()
+    await button(page, 'Ver resultados').click()
+    await expect(page.locator('.result-summary')).toContainText('11 / 80')
+    await expect(page.locator('.result-summary')).toContainText('2 / 7')
+    await expect(result.getByText('Respuesta del profesor · ' + feedback)).toBeVisible()
+    await expect(result.getByText('Respuesta entregada · ' + answer)).toBeVisible()
+  } finally {
+    await ctx.close()
+  }
 })

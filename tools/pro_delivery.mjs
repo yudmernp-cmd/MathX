@@ -2,6 +2,7 @@
 // Vercel only needs Node to open the edition during a production deployment.
 import { createHash, createPublicKey } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { gzipSync, gunzipSync } from 'node:zlib'
@@ -96,17 +97,74 @@ async function unpack() {
   console.log('Edición en español preparada con %d cuadernillos.', catalog.length)
 }
 
+const workedPath = 'server-data/pro-worked.json'
+const workedBundle = 'editions/pro-solutions.jwe'
+async function validateSolutions(keys) {
+  const catalog = await parse(catalogPath)
+  if (Object.keys(keys).length !== catalog.length) throw Error('Colección de soluciones incompleta.')
+  let total = 0
+  for (const entry of catalog) {
+    const qs = await parse(paperDirectory(entry) + '/questions.json')
+    const guide = keys[entry.id]
+    if (!guide || Object.keys(guide).length !== qs.length) throw Error('Preguntas incompletas en ' + entry.id)
+    for (const q of qs) {
+      const labels = q.blocks.map(b => b.answer).filter(Boolean)
+      const rows = guide[q.number]
+      if (!rows || Object.keys(rows).length !== labels.length) throw Error('Incisos incompletos en ' + entry.id + '/' + q.number)
+      let marks = 0
+      for (const label of labels) {
+        const p = rows[label]
+        if (!p || !Number.isInteger(p.marks) || p.marks < 0 || typeof p.steps !== 'string' || !p.steps.trim()
+            || (p.value !== undefined && !Number.isFinite(p.value))
+            || (p.range !== undefined && !Number.isFinite(p.range?.minExclusive))
+            || (p.accepted !== undefined && (!Array.isArray(p.accepted) || !p.accepted.every(t => typeof t === 'string' && t.trim()))))
+          throw Error('Solución inválida en ' + entry.id + '/' + q.number + '/' + label)
+        marks += p.marks
+        total++
+      }
+      if (marks !== q.marks) throw Error('Baremo incorrecto en ' + entry.id + '/' + q.number)
+    }
+  }
+  console.log('%d cuadernillos y %d incisos con solución.', catalog.length, total)
+}
+async function localSolutions() {
+  const catalog = await parse(catalogPath)
+  const guides = {}
+  for (const e of catalog) guides[e.id] = await parse('.private/worked/' + e.id + '.json')
+  await validateSolutions(guides)
+  await atomicWrite(workedPath, JSON.stringify(guides))
+  return guides
+}
+async function packSolutions(recipientPath) {
+  const guides = await localSolutions()
+  const key = await importJWK(await parse(recipientPath), 'ECDH-ES')
+  const ciphertext = await new CompactEncrypt(gzipSync(JSON.stringify(guides)))
+    .setProtectedHeader({ alg: 'ECDH-ES', enc: 'A256GCM', typ: 'mathx-solutions-v1' }).encrypt(key)
+  await atomicWrite(workedBundle, ciphertext)
+}
+async function openSolutions() {
+  const key = editionIdentity(process.env.MATHX_SESSION_SECRET)
+  const { plaintext, protectedHeader } = await compactDecrypt(await readFile(workedBundle,'utf8'),key,{
+    keyManagementAlgorithms:['ECDH-ES'], contentEncryptionAlgorithms:['A256GCM'],
+  })
+  if (protectedHeader.typ !== 'mathx-solutions-v1') throw Error('Edición de soluciones desconocida.')
+  const guides = JSON.parse(gunzipSync(plaintext,{maxOutputLength:16*1024*1024}))
+  await validateSolutions(guides)
+  await atomicWrite(workedPath,JSON.stringify(guides))
+}
+
 const [command, ...args] = process.argv.slice(2)
-if (command === 'pack') await pack(args[0])
+if (command === 'pack-solutions') await packSolutions(args[0])
+else if (command === 'pack') await pack(args[0])
 else if (command === 'unpack') await unpack()
 else if (command === 'prepare') {
-  // Local classrooms can build from their Drive even when using a different session secret.
-  if (process.env.VERCEL && process.env.MATHX_SESSION_SECRET && !args.includes('--refresh')) {
-    const currentKey = createPublicKey(editionIdentity(process.env.MATHX_SESSION_SECRET)).export({ format: 'jwk' })
-    const recipient = await parse('editions/pro-recipient.json')
-    if (currentKey.x === recipient.x) await unpack()
-    else if (process.env.VERCEL_ENV === 'production')
-      throw new Error('La clave del aula ha cambiado. Vuelve a cifrar la edición para esta instancia.')
-    else execFileSync('python3', ['tools/prepare_pro.py', ...args], { stdio: 'inherit' })
-  } else execFileSync('python3', ['tools/prepare_pro.py', ...args], { stdio: 'inherit' })
-} else throw new Error('Usa prepare, pack o unpack.')
+  const secret = process.env.MATHX_SESSION_SECRET
+  const recipient = await parse('editions/pro-recipient.json')
+  const matchesKey = !!secret && createPublicKey(editionIdentity(secret)).export({format:'jwk'}).x === recipient.x
+  if (process.env.VERCEL_ENV === 'production' && !matchesKey)
+    throw new Error('La clave del aula ha cambiado. Vuelve a cifrar las ediciones para esta instancia.')
+  if (matchesKey && !args.includes('--refresh')) await unpack()
+  else execFileSync('python3', ['tools/prepare_pro.py', ...args], { stdio: 'inherit' })
+  if (matchesKey) await openSolutions()
+  else if (existsSync('.private/worked')) await localSolutions()
+} else throw new Error('Usa prepare, pack, pack-solutions o unpack.')

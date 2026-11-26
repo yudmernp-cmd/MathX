@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/classroom.mjs": {
-      "includeFiles": "server-data/{bank.sqlite,exam-originals.cjs,league-grading.cjs,pro/catalog.json}"
+      "includeFiles": "server-data/{bank.sqlite,exam-originals.cjs,league-grading.cjs,pro/catalog.json,pro-worked.json,pro-es/*/questions.json}"
     },
     "api/pro-paper.mjs": {
       "includeFiles": "server-data/pro-es/**/*"

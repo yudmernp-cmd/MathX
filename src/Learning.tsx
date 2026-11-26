@@ -10,6 +10,8 @@ import {
   type Review,
   type Task,
 } from './learning'
+import { ExamResults, type ReportLink } from './ExamResults'
+import { ProfilePhoto } from './ProfilePhoto'
 import { TaskWork, Prompt } from './TaskWork'
 import { MathText, DataFigure } from './Figures'
 import type { Problem } from './math/model'
@@ -134,7 +136,7 @@ export function ActivityNotice({ open }: { open: () => void }) {
             <strong>
               {t.kind === 'challenge'
                 ? 'Reto diario · Avanzado · 20 puntos'
-                : 'Simulacro asignado'}
+                : 'Prueba tipo IB asignada'}
             </strong>{' '}
             · {t.title}
           </p>
@@ -242,7 +244,7 @@ function Publisher({ done, editing, cancel }: { done: () => void; editing: Defin
           }}
         >
           <option value="challenge">Reto diario avanzado · 20 puntos</option>
-          <option value="exam">Convocatoria de simulacro · 80 puntos</option>
+          <option value="exam">Convocatoria de prueba tipo IB · 80 puntos</option>
         </select>
       </label>
       <label>
@@ -415,6 +417,7 @@ export function LearningPanel({
     [attempt, setAttempt] = useState<Attempt | null>(null),
     [review, setReview] = useState<Review>(),
     [pending, setPending] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<ReportLink | null>(null)
   const [editing, setEditing] = useState<Definition | null>(null)
   const [notice, setNotice] = useState('')
   const version = useRef(0)
@@ -431,14 +434,14 @@ export function LearningPanel({
     }
   }
   useEffect(() => {
-    if (attempt) return
+    if (attempt || selectedReport) return
     void load()
     const timer = setInterval(load, admin ? 12000 : 30000)
     return () => {
       version.current++
       clearInterval(timer)
     }
-  }, [admin, attempt])
+  }, [admin, attempt, selectedReport])
   async function open(t: Task, r?: Review) {
     setPending(true)
     setError('')
@@ -487,6 +490,7 @@ export function LearningPanel({
       setPending(false)
     }
   }
+  if (selectedReport) return <ExamResults source={selectedReport.ref} teacher={admin} leave={() => { setSelectedReport(null); working?.(false) }}/>
   if (attempt)
     return (
       <TaskWork
@@ -507,6 +511,10 @@ export function LearningPanel({
           {error} <button onClick={load}>Actualizar</button>
         </p>
       )}
+      {data && <ProfilePhoto photo={data.photo} student={!admin} changed={photo => {
+        version.current++
+        setData(current => current && { ...current, photo })
+      }}/>}
       {admin && data && (
         <section className="panel" aria-label="Avisos del reto">
           <h2>Avisos del reto</h2>
@@ -633,13 +641,19 @@ export function LearningPanel({
                           ? 'Continuar'
                           : t.kind === 'challenge'
                             ? 'Resolver reto'
-                            : 'Resolver simulacro'}
+                            : 'Resolver prueba tipo IB'}
                     </button>
                   </>
                 )}
               </article>
             ))}
           </section>
+          {!!data.results?.length && <section className="panel"><h2>{admin ? 'Revisiones de pruebas' : 'Mis resultados de pruebas'}</h2>
+            {data.results.map(item => <article className="task-row" key={item.ref.id + item.ref.student}>
+              <h3>{admin && item.name + ' · '}{item.title} · Prueba {item.paper}</h3>
+              <p>{stamp(item.at)}{item.waiting > 0 && ' · Revisión solicitada'}</p>
+              <button className="secondary" onClick={()=>{setSelectedReport(item);working?.(true)}}>{admin ? 'Abrir revisión' : 'Ver resultados'}</button>
+            </article>)}</section>}
           {data.profile && (
             <section className="panel">
               <h2>Mi progreso</h2>

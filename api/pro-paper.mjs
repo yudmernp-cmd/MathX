@@ -1,6 +1,6 @@
 import { checkAccess, ClassroomError } from '../server/league.mjs'
 import { readFile } from 'node:fs/promises'
-import { session, same, paperSignature } from '../server/session.mjs'
+import { session, same, paperSignature, paperViewSignature } from '../server/session.mjs'
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store')
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   const params = new URL(req.url, 'http://localhost').searchParams
   const id = params.get('id') || ''
   if (!/^[a-f0-9]{64}$/.test(id) ||
-      !same(params.get('signature') || '', paperSignature(identity.id, id)))
+      (!same(params.get('signature') || '', paperSignature(identity.id, id)) && !same(params.get('signature') || '', paperViewSignature(identity.id, id))))
     return reject(403, 'Este cuadernillo no está asignado a tu cuenta.')
   const asset = params.get('asset')
   if (asset !== null && !/^[a-f0-9]{64}$/.test(asset))

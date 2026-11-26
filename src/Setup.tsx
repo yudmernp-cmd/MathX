@@ -92,7 +92,7 @@ export function Setup({
                   >
                     <Icon size={19} aria-hidden="true" />
                     <span>
-                      {m === 'Ejercicios' ? 'Ejercicios por temas' : m}
+                      {m === 'Ejercicios' ? 'Ejercicios por temas' : m === 'Simulacros' ? 'Pruebas tipo IB' : m}
                     </span>
                     <i className="dot" aria-hidden="true" />
                   </button>
@@ -190,7 +190,7 @@ export function Setup({
               : mode === 'Simulacro Pro'
                 ? 'Empezar Simulacro Pro'
                 : isExam
-                ? 'Empezar simulacro'
+                ? 'Empezar prueba tipo IB'
                 : 'Empezar práctica'}
             <ArrowRight size={18} />
           </button>

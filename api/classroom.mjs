@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import { cookie, digest, mac, session, paperSignature } from '../server/session.mjs'
+import { cookie, digest, mac, session, paperViewSignature } from '../server/session.mjs'
+import { examReport } from '../server/exam-results.mjs'
 import { assignments } from '../server/assignments.mjs'
 import {
   randomBytes,
@@ -9,7 +10,7 @@ import {
   identify,
   enroll,
   checkAccess, directory, manageStudent,
-  boards,
+  boards, profilePhoto, setProfilePhoto,
   toggle,
   submit,
   examTicket,
@@ -75,7 +76,7 @@ export default async function handler(req, res) {
     }
     const selection = ['practice', 'exam', 'drills'].includes(action)
     const limit =
-      selection || action === 'submit' || action === 'task' ? 1024 * 1024 : 8192
+      selection || action === 'submit' || action === 'report' || action === 'task' ? 1024 * 1024 : action === 'photo' ? 40 * 1024 : 8192
     if (req.method === 'POST' && Number(req.headers['content-length']) > limit)
       return send(413, { error: 'Solicitud demasiado extensa.' })
     if (req.method === 'POST' && action === 'login') {
@@ -101,6 +102,21 @@ export default async function handler(req, res) {
       })
     }
     if (!until) return send(401, { error: 'Inicia sesión en el aula.' })
+    if (action === 'photo') {
+      if (req.method === 'POST') {
+        const body = await read(req, limit)
+        return send(200, await setProfilePhoto(until, body?.pixels))
+      }
+      if (req.method === 'GET') {
+        const bytes = await profilePhoto(until, url.searchParams.get('id'))
+        res.setHeader('Cache-Control', 'private, max-age=300')
+        res.setHeader('Vary', 'Cookie')
+        res.setHeader('Content-Type', 'image/png')
+        res.setHeader('Content-Length', bytes.length)
+        return res.end(bytes)
+      }
+      return send(405, { error: 'Método no permitido.' })
+    }
     if (action === 'directory' || action === 'student') {
       if (!until.admin) return send(403, { error: 'Acceso exclusivo de administración.' })
       if (req.method === 'GET' && action === 'directory') return send(200, await directory())
@@ -117,9 +133,11 @@ export default async function handler(req, res) {
       const choices = catalog.filter(entry => entry.paper === paper)
       if (!choices.length) return send(503, { error: 'No hay cuadernillos disponibles para esta prueba.' })
       const { id, title } = choices[randomInt(choices.length)]
+      const deadline = Date.now() + 90 * 60000
       return send(200, {
-        paper, title, id, signature: paperSignature(until.id, id),
-        deadline: Date.now() + 90 * 60000,
+        ticket: mac(['pro-attempt', until.id, id, deadline].join(':')),
+        paper, title, id, signature: paperViewSignature(until.id, id),
+        deadline,
       })
     }
     if (req.method === 'POST' && action === 'logout') {
@@ -129,6 +147,8 @@ export default async function handler(req, res) {
       )
       return send(200, { authenticated: false })
     }
+    if (req.method === 'POST' && action === 'report')
+      return send(200, await examReport(until, await read(req, limit)))
     if (req.method === 'GET' && action === 'learning')
       return send(200, await assignments(until.id, 'learning', {}, until))
     if (req.method === 'POST' && action === 'task') {
@@ -245,7 +265,7 @@ export default async function handler(req, res) {
       )
       const deadline = Date.now() + 90 * 60000
       const ticket = sim
-        ? await examTicket(until.id, questions, deadline)
+        ? await examTicket(until.id, questions, deadline, paper)
         : null
       return send(200, {
         ticket,

@@ -44,6 +44,8 @@ export type Review = {
   time: number
 }
 export type Learning = {
+  photo: string | null
+  results?: import('./ExamResults').ReportLink[]
   tasks: Task[]
   profile?: Profile
   students?: Profile[]

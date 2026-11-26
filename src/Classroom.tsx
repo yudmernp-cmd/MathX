@@ -127,15 +127,15 @@ export default function Classroom({
   useEffect(() => {
     if (!run?.finished || !run.ticket || run.sent) return
     let live = true
-    request<{ counted: boolean; questions: Run['questions'] }>('submit', {
+    request<{ counted: boolean; resultId?: string; questions: Run['questions'] }>('submit', {
       ticket: run.ticket,
-      answers: run.answers,
+      answers: run.answers, notes: run.notes, paper: run.config.paper,
     })
       .then((result) => {
         if (live) {
           setError('')
           change({
-            sent: true,
+            sent: true, resultId: result.resultId,
             counted: result.counted,
             questions: result.questions,
           })

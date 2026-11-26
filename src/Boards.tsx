@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Avatar } from './ProfilePhoto'
 import { request } from './request'
-type Row = { name: string; points: number }
+type Row = { name: string; points: number; photo?: string }
 type Data = {
   exercises: Row[]
   exams: Row[] | null
@@ -33,7 +34,7 @@ function Ranking({
             {rows.map((r, i) => (
               <tr key={i}>
                 <td>{rows.findIndex((x) => x.points === r.points) + 1}</td>
-                <td>{r.name}</td>
+                <td><span className="ranked-student"><Avatar photo={r.photo}/>{r.name}</span></td>
                 <td>{r.points}</td>
               </tr>
             ))}
@@ -74,7 +75,7 @@ export function Boards() {
           />
           {data.exams !== null && (
             <Ranking
-              title="Top de simulacros"
+              title="Top de pruebas tipo IB"
               rows={data.exams}
               detail={
                 data.legacy

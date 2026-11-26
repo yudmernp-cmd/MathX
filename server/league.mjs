@@ -10,6 +10,8 @@ import {
 import {
   get, head, put, BlobNotFoundError, BlobPreconditionFailedError,
 } from '@vercel/blob'
+import { rememberPractice } from './exam-results.mjs'
+import { thumbnail, storePhoto, readPhoto, dropPhoto } from './profile-photo-store.mjs'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -190,9 +192,9 @@ export function directory() {
     points: p.points, hasCode: !!p.protectedCode,
   })).sort((a, b) => a.name.localeCompare(b.name, 'es')))
 }
-export function manageStudent({ id, operation, code }) {
+export async function manageStudent({ id, operation, code }) {
   if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id)) fail(400, 'Alumno inválido.')
-  return state(s => {
+  const result = await state(s => {
     const p = s.students[id]
     if (!p) fail(404, 'El alumno ya no figura en el padrón.')
     const tag = p.tag ?? id
@@ -203,13 +205,18 @@ export function manageStudent({ id, operation, code }) {
     if (s.round) delete s.round.best[id]
     delete s.students[id]
     if (s.byDni) delete s.byDni[tag]
-    if (operation === 'delete') return {}
+    if (operation === 'delete') return { removedPhoto: p.photo }
     // A new identity also invalidates old exercise tickets and browser practice history.
     const next = randomBytes(32).toString('hex')
-    const { seen, tried, stats, weeks, activity, ...account } = p
+    const { seen, tried, stats, weeks, activity, examResults, ...account } = p
     s.students[next] = { ...account, tag, points: 0, seen: {} }
     return { id: next }
   }, operation !== 'reveal')
+  if (operation === 'delete') {
+    await dropPhoto(result.removedPhoto)
+    return {}
+  }
+  return result
 }
 export function accountState(identity, fn, write = false) {
   return state(s => {
@@ -270,8 +277,41 @@ export async function identify({ admin, password, name, code }, forSession = fal
   if (!ok) fail(401, denied)
   return ok
 }
+const photoReaders = new Map()
+export async function profilePhoto(identity, id) {
+  if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id ?? '')) fail(404, 'Foto no disponible.')
+  // All thumbnails arriving together share the same access and membership read.
+  const viewer = identity.id + ':' + identity.version
+  if (!photoReaders.has(viewer)) {
+    photoReaders.set(viewer, accountState(identity, s => new Set([
+      s.adminPhoto, ...Object.values(s.students).map(p => p.photo),
+    ])).finally(() => photoReaders.delete(viewer)))
+  }
+  const visible = await photoReaders.get(viewer)
+  if (!visible.has(id)) fail(404, 'Foto no disponible.')
+  const bytes = await readPhoto(id)
+  if (!bytes) fail(404, 'Foto no disponible.')
+  return Buffer.from(bytes)
+}
+export async function setProfilePhoto(identity, pixels) {
+  const bytes = pixels === null ? null : thumbnail(pixels)
+  if (pixels !== null && !bytes) fail(400, 'La imagen no se pudo procesar.')
+  await checkAccess(identity)
+  const photo = bytes ? await storePhoto(bytes) : null
+  const previous = await accountState(identity, s => {
+    const account = identity.admin ? s : s.students[identity.id]
+    const key = identity.admin ? 'adminPhoto' : 'photo'
+    const old = account[key]
+    if (photo) account[key] = photo
+    else delete account[key]
+    return old
+  }, true)
+  await dropPhoto(previous)
+  return { photo }
+}
 export function boards(identity) {
   return accountState(identity, (s) => {
+    const row = (student, points) => ({ name: student.name, points, ...(student.photo && { photo: student.photo }) })
     const list = (entries) =>
       entries.sort(
         (a, b) => b.points - a.points || a.name.localeCompare(b.name, 'es'),
@@ -282,23 +322,17 @@ export function boards(identity) {
     return {
       ...(exam ? { examTitle: exam.title } : s.round ? { legacy: true } : {}),
       exercises: list(
-        Object.values(s.students).map(({ name, points }) => ({ name, points })),
+        Object.values(s.students).map(p => row(p, p.points)),
       ),
       exams: exam
         ? list(
             Object.entries(exam.attempts)
               .filter(([, t]) => t.grade)
-              .map(([id, t]) => ({
-                name: s.students[id].name,
-                points: t.grade.points,
-              })),
+              .map(([id, t]) => row(s.students[id], t.grade.points)),
           )
         : s.round
           ? list(
-              Object.entries(s.round.best).map(([id, points]) => ({
-                name: s.students[id].name,
-                points,
-              })),
+              Object.entries(s.round.best).map(([id, points]) => row(s.students[id], points)),
             )
           : null,
     }
@@ -315,9 +349,9 @@ export const toggle = (active) =>
 export function drillTicket(id, q) {
   return sign('drill', [id, q])
 }
-export async function examTicket(id, questions, deadline) {
+export async function examTicket(id, questions, deadline, paper) {
   const round = await state((s) => s.round?.id)
-  if (!round || id === 'admin') return null
+  if ((!round && !paper) || id === 'admin') return null
   const iv = randomBytes(12)
   const cipher = createCipheriv(
     'aes-256-gcm',
@@ -325,7 +359,7 @@ export async function examTicket(id, questions, deadline) {
     iv,
   )
   const content = JSON.stringify({
-    round,
+    round, paper,
     attempt: randomUUID(),
     deadline,
     questions,
@@ -415,7 +449,9 @@ export async function submit(id, body, identity) {
   if (!body.ticket || !body.answers || typeof body.answers !== 'object')
     fail(400, 'Entrega inválida.')
   const ticket = openExam(id, body.ticket)
+  let resultId
   const counted = await accountState(identity, (s) => {
+    if (ticket.paper) resultId = rememberPractice(s.students[id], ticket, body)
     const r = s.round
     if (!r || r.id !== ticket.round) return false
     if (Object.hasOwn(r.submitted, ticket.attempt)) return true
@@ -437,5 +473,5 @@ export async function submit(id, body, identity) {
     r.submitted[ticket.attempt] = points
     return true
   }, true)
-  return { counted, questions: ticket.questions }
+  return { counted, questions: ticket.questions, ...(resultId && { resultId }) }
 }
