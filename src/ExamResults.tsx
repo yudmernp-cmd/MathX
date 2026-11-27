@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { MathText, DataFigure } from './Figures'
 import type { Figure, Problem } from './math/model'
 import { request } from './request'
+import thresholds from '../shared/exam-bands.json'
+import type { Appearance } from './AcademicProfile'
 
 export type ReportRef = { id: string; student?: string; assigned?: boolean }
-export type ReportLink = {
+export type ReportLink = Appearance & {
   ref: ReportRef
   title: string
   paper: number
@@ -51,10 +53,7 @@ export type ExamReport = {
   assetURL?: string
   legacyNotes?: string
 }
-export const boundaries = {
-  1: [0, 12, 20, 30, 39, 50, 58],
-  2: [0, 11, 21, 30, 41, 53, 63],
-}
+export const boundaries = thresholds
 export const band = (paper: 1 | 2, points: number) =>
   boundaries[paper].filter((n) => points >= n).length
 

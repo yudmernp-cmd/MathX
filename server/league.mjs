@@ -10,7 +10,8 @@ import {
 import {
   get, head, put, BlobNotFoundError, BlobPreconditionFailedError,
 } from '@vercel/blob'
-import { rememberPractice } from './exam-results.mjs'
+import { rememberPractice, recognizeHistory } from './exam-results.mjs'
+import { academicCard, canEquip, classroomAppearance, recordBatch, recordDay, refreshAcademic } from './academics.mjs'
 import { thumbnail, storePhoto, readPhoto, dropPhoto } from './profile-photo-store.mjs'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
@@ -208,7 +209,7 @@ export async function manageStudent({ id, operation, code }) {
     if (operation === 'delete') return { removedPhoto: p.photo }
     // A new identity also invalidates old exercise tickets and browser practice history.
     const next = randomBytes(32).toString('hex')
-    const { seen, tried, stats, weeks, activity, examResults, ...account } = p
+    const { seen, tried, stats, weeks, activity, examResults, academics, ...account } = p
     s.students[next] = { ...account, tag, points: 0, seen: {} }
     return { id: next }
   }, operation !== 'reveal')
@@ -311,7 +312,10 @@ export async function setProfilePhoto(identity, pixels) {
 }
 export function boards(identity) {
   return accountState(identity, (s) => {
-    const row = (student, points) => ({ name: student.name, points, ...(student.photo && { photo: student.photo }) })
+    const row = (id, points) => {
+      const p = s.students[id]
+      return { member: sign('class-card', id), name: p.name, points, ...classroomAppearance(p), ...(p.photo && { photo: p.photo }) }
+    }
     const list = (entries) =>
       entries.sort(
         (a, b) => b.points - a.points || a.name.localeCompare(b.name, 'es'),
@@ -322,21 +326,37 @@ export function boards(identity) {
     return {
       ...(exam ? { examTitle: exam.title } : s.round ? { legacy: true } : {}),
       exercises: list(
-        Object.values(s.students).map(p => row(p, p.points)),
+        Object.entries(s.students).map(([id, p]) => row(id, p.points)),
       ),
       exams: exam
         ? list(
             Object.entries(exam.attempts)
               .filter(([, t]) => t.grade)
-              .map(([id, t]) => row(s.students[id], t.grade.points)),
+              .map(([id, t]) => row(id, t.grade.points)),
           )
         : s.round
           ? list(
-              Object.entries(s.round.best).map(([id, points]) => row(s.students[id], points)),
+              Object.entries(s.round.best).map(([id, points]) => row(id, points)),
             )
           : null,
     }
   })
+}
+export async function academicProfile(identity, member = null, choices = undefined) {
+  if (choices !== undefined && member !== null) fail(403, 'Solo puedes personalizar tu perfil.')
+  if (member === null && identity.admin) fail(403, 'Elige un estudiante en las clasificaciones.')
+  return accountState(identity, s => {
+    const id = member === null ? identity.id : Object.keys(s.students).find(id => sign('class-card', id) === member)
+    const p = id && s.students[id]
+    if (!p) fail(404, 'Este perfil ya no está disponible.')
+    recognizeHistory(s, id)
+    refreshAcademic(p)
+    if (choices !== undefined) {
+      if (!canEquip(p, choices)) fail(400, 'Elige elementos desbloqueados y hasta tres insignias distintas.')
+      p.academics.equipped = choices
+    }
+    return academicCard(p, member === null)
+  }, true)
 }
 export const toggle = (active) =>
   state((s) => {
@@ -348,6 +368,13 @@ export const toggle = (active) =>
   }, true)
 export function drillTicket(id, q) {
   return sign('drill', [id, q])
+}
+export async function drillHelp(identity, { drill, signature }) {
+  if (!drill?.batch || !matches(signature, drillTicket(identity.id, drill))) fail(400, 'Ejercicio inválido.')
+  return accountState(identity, s => {
+    if (!identity.admin) recordBatch(s.students[identity.id], drill, 'help')
+    return { recorded: true }
+  }, true)
 }
 export async function examTicket(id, questions, deadline, paper) {
   const round = await state((s) => s.round?.id)
@@ -422,7 +449,10 @@ export async function submit(id, body, identity) {
       p.stats ??= {}
       const group = drill.tema + ' · ' + drill.dificultad
       const stat = (p.stats[group] ??= { tried: 0, first: 0, solved: 0 })
-      if (!p.tried[key]) {
+      // Earlier versions kept solved exercises before they tracked first attempts.
+      if (!p.tried[key] && p.seen[key]) p.tried[key] = 2
+      const fresh = !p.tried[key]
+      if (fresh) {
         p.tried[key] = 1
         stat.tried++
         const monday = new Date(p.activity - 5 * 3600000)
@@ -443,6 +473,9 @@ export async function submit(id, body, identity) {
         p.seen[key] = 1
         p.points++
       }
+      if (fresh) recordDay(p, drill.tema, p.activity)
+      recordBatch(p, drill, 'answer', fresh && right)
+      refreshAcademic(p)
       return { correct: right }
     }, true)
   }

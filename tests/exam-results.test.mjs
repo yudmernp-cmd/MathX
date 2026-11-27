@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 import { assignments } from '../server/assignments.mjs'
 import { examReport } from '../server/exam-results.mjs'
-import { boards, enroll, examTicket, identify, state, submit } from '../server/league.mjs'
+import { academicProfile, boards, enroll, examTicket, identify, state, submit } from '../server/league.mjs'
 import { mac, paperSignature } from '../server/session.mjs'
 
 process.env.MATHX_LEAGUE_DB = ':memory:'
@@ -34,6 +34,8 @@ test('informe personal conserva el primer envío y la revisión cambia los punto
   const first = await open(owner)
   assert.equal(first.paper, 1)
   assert.deepEqual(first.rows.map(q => [q.earned, q.pending, q.max]), [[40, 0, 40], [0, 40, 40]])
+  assert.ok((await academicProfile(owner)).earned.includes('p1'))
+  assert.ok(!(await academicProfile(owner)).earned.includes('band-5'))
   assert.equal(first.rows[0].parts[0].steps[0], '3+2=5.')
   assert.equal(first.rows[1].parts[0].notes, notes['1-0'])
   assert.ok((await learning(owner)).results.some(result => result.ref.id === resultId))
@@ -62,6 +64,7 @@ test('informe personal conserva el primer envío y la revisión cambia los punto
     assert.equal(reviewed.rows[1].review.feedback, decision.feedback)
   }
   assert.ok(!(await learning(admin)).results.some(result => result.ref.id === resultId))
+  assert.ok((await academicProfile(owner)).earned.includes('band-7'))
 })
 
 test('una convocatoria vencida conserva el cuadernillo original y aplica la corrección al top', async t => {
@@ -120,6 +123,8 @@ test('Simulacro Pro corrige desde su solucionario y verifica la firma y el propi
     await assert.rejects(examReport(owner, { ...body, deadline: deadline - 1 }), { status: 403 })
     const report = await examReport(owner, body)
     assert.equal(report.paper, paper)
+    assert.ok((await academicProfile(owner)).earned.includes('p' + paper))
+    assert.ok(!(await academicProfile(owner)).earned.includes('band-5'))
     assert.equal(report.rows.reduce((n, q) => n + q.max, 0), 80)
     assert.equal(report.rows.reduce((n, q) => n + q.earned, 0), key.marks)
     const marked = report.rows[Number(number) - 1].parts.find(p => p.label === part)

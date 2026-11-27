@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import { deflateRawSync, inflateRawSync } from 'node:zlib'
 import { accountState, ClassroomError } from './league.mjs'
 import { mac, same, paperSignature, paperViewSignature } from './session.mjs'
+import { classroomAppearance, recordChallenge, recordExam } from './academics.mjs'
 
 const require = createRequire(import.meta.url)
 const load = (path) => JSON.parse(readFileSync(path, 'utf8'))
@@ -87,6 +88,7 @@ export function rememberPractice(student, ticket, body) {
       ),
     )
     reports[ticket.attempt] = record
+    recognizeExam(student, record, ticket.questions)
   }
   return ticket.attempt
 }
@@ -140,8 +142,8 @@ function questionsFor(record) {
     }).toString('utf8'),
   )
 }
-function render(record, questions, identity, ref) {
-  const rows = questions.map((q, i) => {
+function markRows(record, questions) {
+  return questions.map((q, i) => {
     const parts = q.parts.map((p, j) => {
       const key = p.key ?? i + '-' + j
       const answer = record.answers[key] ?? '',
@@ -187,11 +189,13 @@ function render(record, questions, identity, ref) {
       teacherScore: awarded,
     }
   })
+}
+function render(record, questions, identity, ref) {
   return {
     ref,
     title: record.title,
     paper: record.paper,
-    rows,
+    rows: markRows(record, questions),
     at: record.at,
     legacyNotes: record.legacyNotes,
     comment: record.grade?.comment,
@@ -203,6 +207,54 @@ function render(record, questions, identity, ref) {
         '&asset='
       : undefined,
   }
+}
+function recognizeExam(student, record, questions, rows) {
+  let total = 0, participated = !!record.legacyNotes?.trim()
+  questions.forEach((q, i) => {
+    for (const [j, part] of q.parts.entries()) {
+      total += part.marks ?? part.rubric.length
+      const key = part.key ?? i + '-' + j
+      if (record.answers?.[key]?.trim() || record.notes?.[key]?.trim()) participated = true
+    }
+    if (record.proId && record.answers?.[i + 1]?.trim()) participated = true
+  })
+  const reviews = Object.values(record.reviews ?? {})
+  let reviewedPoints
+  if (!reviews.some(r => r.reason && !r.resolved)) {
+    if (record.grade) reviewedPoints = record.grade.points
+    else if (reviews.some(r => Number.isInteger(r.score) && r.resolved)) {
+      rows ??= markRows(record, questions)
+      if (rows.every(q => q.pending === 0)) reviewedPoints = rows.reduce((sum, q) => sum + q.earned, 0)
+    }
+  }
+  recordExam(student, record.paper, total, participated, reviewedPoints)
+}
+export function recognizeAssignment(student, a, t) {
+  if (!t || (!t.sent && Date.now() < t.deadline)) return
+  if (a.kind === 'challenge') {
+    if (t.grade) recordChallenge(student, a.id, t.grade.points)
+  } else if (a.kind === 'exam') {
+    const snap = a.snapshots?.[t.snapshot] ?? a
+    if (Array.isArray(snap.questions)) recognizeExam(student, { ...t, paper: snap.paper }, snap.questions)
+  }
+}
+export function recognizeHistory(s, id) {
+  const p = s.students[id]
+  if (!p.academics?.importedReports) {
+    let imported = true
+    for (const record of Object.values(p.examResults ?? {})) {
+      try { recognizeExam(p, record, questionsFor(record)) }
+      catch (error) {
+        // A classroom without the optional Pro edition can still use its other achievements.
+        if (!record.proId || error.code !== 'ENOENT') throw error
+        imported = false
+      }
+    }
+    p.academics ??= { earned: [] }
+    p.academics.importedReports = imported
+  }
+  // Some assigned papers finish by timeout while the student is offline.
+  for (const a of Object.values(s.assignments ?? {})) recognizeAssignment(p, a, a.attempts[id])
 }
 export function resultLinks(s, identity) {
   const personal = [],
@@ -216,6 +268,7 @@ export function resultLinks(s, identity) {
       title: record.title,
       paper: record.paper,
       name,
+      ...classroomAppearance(s.students[ref.student]),
       at: record.at,
       waiting,
     }
@@ -345,6 +398,7 @@ export function examReport(identity, body) {
         questions ??= questionsFor(record)
       }
       const index = body.index
+      if (action === 'resolve' || action === 'appeal') recognizeExam(profile, record, questions)
       if (['appeal', 'resolve'].includes(action)) {
         if (!Number.isInteger(index) || !questions[index])
           fail(400, 'Pregunta no válida.')
@@ -409,6 +463,7 @@ export function examReport(identity, body) {
             comment: '',
           }
         }
+        recognizeExam(profile, record, questions, report.rows)
       }
       return report
     },

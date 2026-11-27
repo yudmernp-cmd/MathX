@@ -5,12 +5,13 @@ import { assignments } from '../server/assignments.mjs'
 import {
   randomBytes,
   randomInt,
+  randomUUID,
 } from 'node:crypto'
 import {
   identify,
   enroll,
   checkAccess, directory, manageStudent,
-  boards, profilePhoto, setProfilePhoto,
+  boards, profilePhoto, setProfilePhoto, academicProfile, drillHelp,
   toggle,
   submit,
   examTicket,
@@ -76,7 +77,7 @@ export default async function handler(req, res) {
     }
     const selection = ['practice', 'exam', 'drills'].includes(action)
     const limit =
-      selection || action === 'submit' || action === 'report' || action === 'task' ? 1024 * 1024 : action === 'photo' ? 40 * 1024 : 8192
+      selection || ['submit', 'drill-help', 'report', 'task'].includes(action) ? 1024 * 1024 : action === 'photo' ? 40 * 1024 : 8192
     if (req.method === 'POST' && Number(req.headers['content-length']) > limit)
       return send(413, { error: 'Solicitud demasiado extensa.' })
     if (req.method === 'POST' && action === 'login') {
@@ -157,6 +158,14 @@ export default async function handler(req, res) {
     }
     if (req.method === 'GET' && action === 'boards')
       return send(200, await boards(until))
+    if (action === 'academic-profile') {
+      const member = url.searchParams.get('member')
+      if (req.method === 'GET') return send(200, await academicProfile(until, member))
+      if (req.method === 'POST') return send(200, await academicProfile(until, member, await read(req)))
+      return send(405, { error: 'Método no permitido.' })
+    }
+    if (req.method === 'POST' && action === 'drill-help')
+      return send(200, await drillHelp(until, await read(req, limit)))
     if (req.method === 'POST' && ['enroll', 'toggle'].includes(action)) {
       if (!until.admin)
         return send(403, { error: 'Acceso exclusivo de administración.' })
@@ -187,6 +196,7 @@ export default async function handler(req, res) {
         tema,
         dificultad_objetivo = 3,
         cantidad = 15,
+        trackBatch,
         recent = [],
         draw,
         offset = 0,
@@ -210,6 +220,7 @@ export default async function handler(req, res) {
           error:
             'Elige un tema y una dificultad del 1 al 5 para la tanda de 15 ejercicios.',
         })
+      const batch = trackBatch === true ? randomUUID() : null
       return send(
         200,
         drills(
@@ -223,7 +234,10 @@ export default async function handler(req, res) {
           recent,
           draw,
           offset,
-        ).map((q) => ({ ...q, signature: drillTicket(until.id, q) })),
+        ).map((q, slot) => {
+          const drill = batch ? { ...q, batch, slot } : q
+          return { ...drill, signature: drillTicket(until.id, drill) }
+        }),
       )
     }
     if (req.method === 'POST' && selection) {

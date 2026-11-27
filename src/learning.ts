@@ -1,5 +1,6 @@
 import { request } from './request'
 import type { Problem } from './math/model'
+import type { Appearance } from './AcademicProfile'
 export type Grade = {
   points: number
   scores: number[]
@@ -28,14 +29,16 @@ export type Attempt = Task & {
   deadline: number
   reveal: boolean
 }
-export type Profile = {
+export type Profile = Appearance & {
   name: string
+  title?: string | null
+  badges?: string[]
   points: number
   weeks: Record<string, Record<string, { tried: number; first: number }>>
   activity?: number
   stats: Record<string, { tried: number; first: number; solved: number }>
 }
-export type Review = {
+export type Review = Appearance & {
   task: string
   student: string
   name: string
@@ -51,7 +54,7 @@ export type Learning = {
   students?: Profile[]
   legacyRound?: boolean
   reviews?: Review[]
-  alerts?: { kind: string; title: string; name: string; at: number }[]
+  alerts?: (Appearance & { kind: string; title: string; name: string; at: number })[]
 }
 export const task = <T = unknown>(action: string, data: object = {}) =>
   request<T>('task', { action, ...data })

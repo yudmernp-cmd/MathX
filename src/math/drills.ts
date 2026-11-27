@@ -13,6 +13,8 @@ export const drillThemeName = (t: Theme | undefined) =>
   drillNames[Math.max(0, themes.indexOf(t ?? themes[0]))]
 export type Drill = {
   signature?: string
+  batch?: string
+  slot?: number
   tema: string
   subtema: string
   tipo_tarea: string

@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { UserRound } from 'lucide-react'
 import { request } from './request'
 
@@ -30,9 +30,9 @@ async function cropPhoto(file: File) {
     URL.revokeObjectURL(url)
   }
 }
-export function Avatar({ photo }: { photo?: string | null }) {
+export function Avatar({ photo, frame }: { photo?: string | null; frame?: string | null }) {
   const [failed, setFailed] = useState<string>()
-  return <span className="avatar" aria-hidden="true">
+  return <span className="avatar" data-frame={frame || undefined} aria-hidden="true">
     {photo && failed !== photo
       ? <img src={'/api/classroom?action=photo&id=' + encodeURIComponent(photo)} width={48} height={48}
           alt="" loading="lazy" onError={() => setFailed(photo)}/>
@@ -40,8 +40,9 @@ export function Avatar({ photo }: { photo?: string | null }) {
   </span>
 }
 
-export function ProfilePhoto({ photo, changed, student }: {
+export function ProfilePhoto({ photo, changed, student, frame, name, highlights, children }: {
   photo: string | null; changed: (photo: string | null) => void; student: boolean
+  frame?: string | null; name?: ReactNode; highlights?: ReactNode; children?: ReactNode
 }) {
   const input = useRef<HTMLInputElement>(null)
   const id = useId()
@@ -57,11 +58,13 @@ export function ProfilePhoto({ photo, changed, student }: {
     finally { setBusy(false) }
   }
   return <section className="panel photo-editor" aria-labelledby={id}>
-    <Avatar photo={photo}/>
+    <Avatar photo={photo} frame={frame}/>
     <div>
-      <h2 id={id}>Foto de perfil</h2>
-      {student && <p>Se muestra junto a tu nombre en las clasificaciones.</p>}
+      <h2 id={id}>{name}{name && <span className="sr-only"> · </span>}<span className={name ? 'sr-only' : undefined}>Foto de perfil</span></h2>
+      {highlights}
+      {student && <p>Perfil visible para tu aula.</p>}
       <div className="actions">
+        {children}
         <button type="button" className="secondary" disabled={busy} onClick={() => input.current?.click()}>
           {photo ? 'Cambiar foto' : 'Subir foto'}
         </button>

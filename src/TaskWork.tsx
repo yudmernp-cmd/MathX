@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MathText, DataFigure } from './Figures'
 import { ExamResults } from './ExamResults'
+import { AcademicName, type Appearance } from './AcademicProfile'
 import { MathKeys } from './MathKeys'
 import { partMarks, points, type Problem } from './math/model'
 import { task, type Attempt, type Grade } from './learning'
@@ -39,7 +40,7 @@ export function TaskWork({
 }: {
   initial: Attempt
   leave: () => void
-  review?: { student: string; name: string }
+  review?: Appearance & { student: string; name: string }
 }) {
   const [a, setA] = useState(initial),
     [answers, setAnswers] = useState(initial.answers),
@@ -252,7 +253,7 @@ export function TaskWork({
         {challenge
           ? 'Reto diario · Avanzado · 20 puntos'
           : 'Prueba tipo IB · Prueba ' + a.paper + ' · 80 puntos'}
-        {review && ' · ' + review.name}
+        {review && <> · <AcademicName name={review.name} color={review.color}/></>}
       </p>
       {active && (
         <p>

@@ -1,6 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import { state, accountState, ClassroomError, examPrompts } from './league.mjs'
-import { resultLinks } from './exam-results.mjs'
+import { resultLinks, recognizeAssignment } from './exam-results.mjs'
+import { classroomAppearance } from './academics.mjs'
 import { bank } from './bank.mjs'
 const fail = (message, status = 400) => {
   throw new ClassroomError(status, message)
@@ -191,6 +192,7 @@ export async function assignments(id, action, b = {}, identity) {
       })
       const profile = (p) => ({
         name: p.name,
+        ...classroomAppearance(p),
         points: p.points,
         activity: p.activity,
         stats: p.stats ?? {},
@@ -198,27 +200,34 @@ export async function assignments(id, action, b = {}, identity) {
       })
       const results = resultLinks(s, { id, admin })
       const photo = (admin ? s.adminPhoto : s.students[id].photo) ?? null
-      if (!admin) return { tasks: rows, results, photo, profile: profile(s.students[id]) }
+      if (!admin) {
+        const p = s.students[id]
+        return { tasks: rows, results, photo, profile: { ...profile(p),
+          title: p.academics?.equipped?.title ?? null, badges: p.academics?.equipped?.badges ?? [] } }
+      }
       const reviews = [],
         alerts = []
       for (const a of all)
         for (const [student, t] of Object.entries(a.attempts)) {
           const name = s.students[student].name
+          const appearance = classroomAppearance(s.students[student])
           if (finished(t, now))
             reviews.push({
               task: a.id,
               student,
               name,
+              ...appearance,
               title: a.title,
               grade: t.grade ?? null,
               time: t.sent ?? t.deadline,
             })
           if (a.kind === 'challenge') {
             for (const e of t.events ?? [])
-              alerts.push({ name, title: a.title, ...e })
+              alerts.push({ name, ...appearance, title: a.title, ...e })
             if (Math.min(now, t.sent ?? t.deadline) - t.last > 90000)
               alerts.push({
                 name,
+                ...appearance,
                 title: a.title,
                 at: t.last,
                 kind: 'Reto sin conexión confirmada · última señal',
@@ -242,8 +251,9 @@ export async function assignments(id, action, b = {}, identity) {
     }
     if (action === 'delete') {
       if (b.editVersion !== (a.editVersion ?? 0)) fail('La actividad cambió. Actualiza el aula.', 409)
-      if (a.kind === 'challenge') for (const [student, t] of Object.entries(a.attempts)) {
-        if (t.grade) s.students[student].points -= t.grade.points
+      for (const [student, t] of Object.entries(a.attempts)) {
+        recognizeAssignment(s.students[student], a, t)
+        if (a.kind === 'challenge' && t.grade) s.students[student].points -= t.grade.points
       }
       delete s.assignments[a.id]
       return { deleted: true }
@@ -300,9 +310,11 @@ export async function assignments(id, action, b = {}, identity) {
         fail('Puntuación fuera del baremo.')
       const points = b.scores.reduce((v, n) => v + n, 0),
         comment = text(b.comment ?? '', 2000)
+      recognizeAssignment(s.students[student], a, t)
       if (a.kind === 'challenge')
         s.students[student].points += points - (t.grade?.points ?? 0)
       t.grade = { points, scores: b.scores, comment, at: now }
+      recognizeAssignment(s.students[student], a, t)
       return t.grade
     }
     if (action === 'taskStatus') return { active: !done }
@@ -332,7 +344,10 @@ export async function assignments(id, action, b = {}, identity) {
       t.revision++
       recordContact(t, now, a.kind === 'challenge')
       s.students[id].activity = now
-      if (action === 'sendTask') t.sent = now
+      if (action === 'sendTask') {
+        t.sent = now
+        recognizeAssignment(s.students[id], a, t)
+      }
       return { submitted: !!t.sent, revision: t.revision }
     }
     if (!['beginTask', 'inspect', 'myTask'].includes(action))

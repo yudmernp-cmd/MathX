@@ -207,8 +207,10 @@ test('selección P1/P2, examen común de 80 puntos, expiración y top con notas 
       scores: maxima,
       comment: 'Revisado',
     })
-    assert.deepEqual((await boards()).exams, [
-      { name: 'Revisión P' + paper, points: 80 },
+    const ranking = await boards()
+    const member = ranking.exercises.find(row => row.name === 'Revisión P' + paper).member
+    assert.deepEqual(ranking.exams, [
+      { name: 'Revisión P' + paper, points: 80, member },
     ])
     assert.equal(
       (await boards()).exercises.find((x) => x.name === 'Revisión P' + paper)

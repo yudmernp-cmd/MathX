@@ -29,6 +29,7 @@ export function DrillWorkspace({
     checked = !!run.drillChecked?.[id]
   function jump(index: number) {
     setSolution(false)
+    setError('')
     change({ index })
     window.scrollTo(0, 0)
   }
@@ -38,7 +39,7 @@ export function DrillWorkspace({
   return (
     <div className="workspace">
       <div className="toolbar">
-        <button className="back" onClick={home}>
+        <button className="back" disabled={saving} onClick={home}>
           <ArrowLeft size={17} /> Configuración
         </button>
       </div>
@@ -131,8 +132,19 @@ export function DrillWorkspace({
             <button
               className="secondary"
               type="button"
+              disabled={saving}
               aria-expanded={solution}
-              onClick={() => setSolution(!solution)}
+              onClick={async () => {
+                if (solution || !q.batch) { setSolution(!solution); return }
+                setSaving(true)
+                setError('')
+                try {
+                  const { signature, ...drill } = q
+                  await request('drill-help', { signature, drill })
+                  setSolution(true)
+                } catch (e) { setError((e as Error).message) }
+                finally { setSaving(false) }
+              }}
             >
               {solution ? 'Ocultar solución' : 'Ver solución'}
             </button>
@@ -168,7 +180,7 @@ export function DrillWorkspace({
               Siguiente ejercicio <ArrowRight size={16} />
             </button>
           ) : (
-            <button className="primary" disabled={busy} onClick={another}>
+            <button className="primary" disabled={busy || saving} onClick={another}>
               Generar otra tanda <ArrowRight size={16} />
             </button>
           )}

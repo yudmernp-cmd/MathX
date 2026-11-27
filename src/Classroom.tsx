@@ -100,6 +100,7 @@ export default function Classroom({
           if (mode === 'Simulacros')
             return request<Run>('exam', { ...config, ...ticket })
           const items = await request<Drill[]>('drills', {
+            trackBatch: true,
             tema: drillThemeName(config.theme),
             cantidad: 15,
             dificultad_objetivo: config.drillLevel ?? 3,

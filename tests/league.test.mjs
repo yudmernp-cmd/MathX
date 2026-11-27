@@ -30,11 +30,16 @@ test('identidad, concurrencia, clasificación y aislamiento entre convocatorias'
     submit(id, { ...proof, drill: { ...q, respuesta: '0' } }),
   )
   await Promise.all([submit(id, proof), submit(id, proof)])
-  assert.deepEqual(await boards(), {
+  const ranking = await boards()
+  const [ana, luis] = ranking.exercises.map(row => row.member)
+  assert.match(ana, /^[a-f0-9]{64}$/)
+  assert.notEqual(ana, id)
+  assert.notEqual(ana, luis)
+  assert.deepEqual(ranking, {
     exams: null,
     exercises: [
-      { name: 'Ana', points: 1 },
-      { name: 'Luis', points: 0 },
+      { name: 'Ana', points: 1, member: ana },
+      { name: 'Luis', points: 0, member: luis },
     ],
   })
   const questions = [{ parts: [{ value: 2 }, { value: null }] }],
@@ -44,7 +49,7 @@ test('identidad, concurrencia, clasificación y aislamiento entre convocatorias'
   const ticket = await examTicket(id, questions, until)
   await assert.rejects(submit(other, { ticket, answers: { '0-0': '2' } }))
   await submit(id, { ticket, answers: { '0-0': '4/2' } })
-  assert.deepEqual((await boards()).exams, [{ name: 'Ana', points: 1 }])
+  assert.deepEqual((await boards()).exams, [{ name: 'Ana', points: 1, member: ana }])
   await submit(id, { ticket, answers: {} })
   await toggle(false)
   await toggle(true)

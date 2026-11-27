@@ -12,6 +12,7 @@ import {
 } from './learning'
 import { ExamResults, type ReportLink } from './ExamResults'
 import { ProfilePhoto } from './ProfilePhoto'
+import { AcademicEditor, AcademicHighlights, AcademicName } from './AcademicProfile'
 import { TaskWork, Prompt } from './TaskWork'
 import { MathText, DataFigure } from './Figures'
 import type { Problem } from './math/model'
@@ -511,10 +512,17 @@ export function LearningPanel({
           {error} <button onClick={load}>Actualizar</button>
         </p>
       )}
-      {data && <ProfilePhoto photo={data.photo} student={!admin} changed={photo => {
+      {data && <ProfilePhoto photo={data.photo} student={!admin} frame={data.profile?.frame}
+        highlights={data.profile && <AcademicHighlights title={data.profile.title} badges={data.profile.badges}/>}
+        name={data.profile && <AcademicName name={data.profile.name} color={data.profile.color}/>} changed={photo => {
         version.current++
         setData(current => current && { ...current, photo })
-      }}/>}
+      }}>
+        {data.profile && <AcademicEditor photo={data.photo} changed={appearance => {
+          version.current++
+          setData(current => current?.profile ? { ...current, profile: { ...current.profile, ...appearance } } : current)
+        }}/>}
+      </ProfilePhoto>}
       {admin && data && (
         <section className="panel" aria-label="Avisos del reto">
           <h2>Avisos del reto</h2>
@@ -527,7 +535,7 @@ export function LearningPanel({
           >
             {data.alerts?.map((x) => (
               <li key={[x.name, x.title, x.kind, x.at].join('|')}>
-                {stamp(x.at)} · {x.name} · {x.kind} · {x.title}
+                {stamp(x.at)} · <AcademicName name={x.name} color={x.color}/> · {x.kind} · {x.title}
               </li>
             ))}
           </ul>
@@ -650,7 +658,7 @@ export function LearningPanel({
           </section>
           {!!data.results?.length && <section className="panel"><h2>{admin ? 'Revisiones de pruebas' : 'Mis resultados de pruebas'}</h2>
             {data.results.map(item => <article className="task-row" key={item.ref.id + item.ref.student}>
-              <h3>{admin && item.name + ' · '}{item.title} · Prueba {item.paper}</h3>
+              <h3>{admin && <><AcademicName name={item.name} color={item.color}/> · </>}{item.title} · Prueba {item.paper}</h3>
               <p>{stamp(item.at)}{item.waiting > 0 && ' · Revisión solicitada'}</p>
               <button className="secondary" onClick={()=>{setSelectedReport(item);working?.(true)}}>{admin ? 'Abrir revisión' : 'Ver resultados'}</button>
             </article>)}</section>}
@@ -667,7 +675,7 @@ export function LearningPanel({
                 {data.reviews?.map((r) => (
                   <article className="task-row" key={r.task + r.student}>
                     <b>
-                      {r.name} · {r.title}
+                      <AcademicName name={r.name} color={r.color}/> · {r.title}
                     </b>
                     <p>
                       {r.grade
@@ -707,7 +715,7 @@ export function LearningPanel({
                 {data.students?.map((p, i) => (
                   <details key={i}>
                     <summary>
-                      {p.name} · {p.points} puntos
+                      <AcademicName name={p.name} color={p.color}/> · {p.points} puntos
                     </summary>
                     <p>
                       Última actividad registrada ·{' '}
