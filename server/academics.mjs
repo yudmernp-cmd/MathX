@@ -3,8 +3,10 @@ import boundaries from '../shared/exam-bands.json' with { type: 'json' }
 
 const subjects = catalog.filter(item => item.topic)
 const tiers = catalog.filter(item => item.color)
+const benefitKinds = ['color', 'frame', 'title', 'badge']
 const fullBatch = (1 << 15) - 1
 const defaults = () => ({ color: null, frame: null, title: null, badges: [] })
+export const equippedBenefits = p => p.academics?.equipped ?? defaults()
 const journal = p => (p.academics ??= { earned: [] })
 function award(p, id) {
   const { earned } = journal(p)
@@ -98,16 +100,22 @@ export function classroomAppearance(p) {
   }
 }
 export function academicCard(p, owner = false) {
-  const { earned, equipped } = journal(p)
+  const { earned, grants } = journal(p)
   const rank = tiers.filter(t => earned.includes(t.id)).at(-1)?.id ?? null
+  const visibleGrants = owner ? grants : grants?.badge?.length ? { badge: grants.badge } : undefined
   return {
-    name: p.name, photo: p.photo ?? null, rank, equipped: equipped ?? defaults(),
+    name: p.name, photo: p.photo ?? null, rank, equipped: equippedBenefits(p),
     earned: owner ? earned : earned.filter(id => catalog.some(item => item.id === id && item.badge)),
+    ...(visibleGrants && { grants: visibleGrants }),
   }
+}
+export function validBenefit(kind, id) {
+  return benefitKinds.includes(kind) && catalog.some(item => item.id === id && item[kind])
 }
 export function canEquip(p, choices) {
   if (!choices || typeof choices !== 'object' || Object.keys(choices).length !== 4) return false
-  const allowed = (group, id) => journal(p).earned.includes(id) && catalog.some(item => item.id === id && item[group])
+  const { earned, grants } = journal(p)
+  const allowed = (group, id) => validBenefit(group, id) && (earned.includes(id) || grants?.[group]?.includes(id))
   return ['color', 'frame', 'title'].every(group => choices[group] === null || allowed(group, choices[group])) &&
     Array.isArray(choices.badges) && choices.badges.length <= 3 &&
     new Set(choices.badges).size === choices.badges.length && choices.badges.every(id => allowed('badge', id))

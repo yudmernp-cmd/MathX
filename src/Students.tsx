@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { request } from './request'
+import { StudentBenefits } from './StudentBenefits'
 
 export function Enrollment() {
   const [code, setCode] = useState(''),
@@ -88,7 +89,7 @@ function Account({
       operation === 'delete'
         ? 'Se eliminarán su cuenta, entregas y avance.'
         : operation === 'reset'
-          ? 'Se borrarán sus puntos, entregas, logros de perfil e historial de práctica. Conservará su código.'
+          ? 'Se borrarán sus puntos, entregas, logros, beneficios asignados e historial de práctica. Conservará su código.'
           : operation === 'code'
             ? 'Su código anterior dejará de funcionar y deberá iniciar sesión de nuevo.'
             : ''
@@ -134,6 +135,7 @@ function Account({
       <h2>{student.name}</h2>
       <p>Usuario de ingreso · {student.name}</p>
       <p>Puntos · {student.points}</p>
+      <StudentBenefits studentId={student.id}/>
       <h3>Código personal de acceso</h3>
       {shown ? (
         <p>

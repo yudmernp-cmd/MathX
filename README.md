@@ -10,6 +10,8 @@ En Administración, inscribe a cada estudiante con su nombre y entrégale el có
 
 En **Mi aula → Personalizar perfil**, cada estudiante puede equipar un título académico, un marco, un color de nombre y hasta tres insignias. Las condiciones se consultan en **Cómo desbloquear los elementos**. El servidor reconoce los ejercicios resueltos y las pruebas revisadas que ya constan en el aula. Los días de práctica por tema y las consultas de soluciones se registran desde la incorporación de los perfiles. Las clasificaciones permiten abrir la tarjeta de otro estudiante del aula. Los logros se conservan tras una corrección de nota. Reiniciar el avance desde Administración también reinicia la colección.
 
+En **Administración → Usuarios**, selecciona un alumno y abre **Beneficios de perfil**. Elige el tipo y el elemento que quieres conceder. **Asignar beneficio** lo añade a la colección de ese alumno. Marca **Equipar ahora en el perfil** para mostrárselo al aula al asignarlo. Si ya tiene tres insignias destacadas, puedes elegir cuál sustituir. Los rangos académicos se siguen calculando a partir de la práctica y de las pruebas revisadas.
+
 ## Actividades del profesor
 
 En **Administración → Asignar actividad**, el profesor puede escribir un reto con una solución opcional o seleccionar una pregunta del banco privado de Prueba 1 o 2. Se admite un reto diario avanzado por fecha de Lima. Para convocar un simulacro común de 80 puntos, elige la prueba, las fechas de apertura y cierre y la duración (90 minutos por defecto). El top de esa convocatoria se puede mostrar u ocultar.

@@ -1,17 +1,9 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Award, Check, LockKeyhole, SlidersHorizontal, X } from 'lucide-react'
-import items from '../shared/academic.json'
+import { available, catalog, categories, fields, item, useAcademicCard, type Card, type Equipped } from './academic'
 import { Avatar } from './ProfilePhoto'
 import { request } from './request'
 
-type Entry = {
-  id: string; rule: string; color?: string; symbol?: string; frame?: string; title?: string; badge?: string
-}
-const catalog: Entry[] = items
-const item = (id?: string | null) => catalog.find(entry => entry.id === id)
-type Single = 'color' | 'frame' | 'title'
-type Equipped = Record<Single, string | null> & { badges: string[] }
-type Card = { name: string; photo: string | null; rank: string | null; earned: string[]; equipped: Equipped }
 export type Appearance = { color?: string | null; frame?: string | null }
 type Changed = (equipped: Equipped) => void
 
@@ -53,44 +45,28 @@ function Modal({ heading, close, children }: { heading: string; close: () => voi
     {children}
   </dialog>
 }
-function useCard(member?: string) {
-  const [card, setCard] = useState<Card>(), [error, setError] = useState(''), [retry, setRetry] = useState(0)
-  useEffect(() => {
-    let active = true
-    setError('')
-    setCard(undefined)
-    request<Card>('academic-profile' + (member ? '&member=' + encodeURIComponent(member) : ''))
-      .then(value => { if (active) setCard(value) })
-      .catch(e => { if (active) setError(e.message) })
-    return () => { active = false }
-  }, [member, retry])
-  const loading = error
-    ? <div role="alert">{error} <button className="back" onClick={() => setRetry(r => r + 1)}>Reintentar</button></div>
-    : <p role="status">Cargando perfil…</p>
-  return { card, setCard, loading }
-}
 export function MemberCard({ member, close }: { member: string; close: () => void }) {
-  const { card, loading } = useCard(member)
+  const { card, loading } = useAcademicCard('academic-profile&member=' + encodeURIComponent(member))
+  const assignedBadges = card?.grants?.badge?.filter(id => !card.earned.includes(id)) ?? []
   return <Modal heading="Perfil del aula" close={close}>{card ? <>
     <Identity card={card}/>
     <h3>Colección de insignias</h3>
-    {card.earned.length ? <BadgeList ids={card.earned}/> : <p>Todavía no ha obtenido insignias.</p>}
+    {card.earned.length > 0 && <BadgeList ids={card.earned}/>}
+    {assignedBadges.length > 0 && <><p>Asignadas por el profesor</p><BadgeList ids={assignedBadges}/></>}
+    {!card.earned.length && !assignedBadges.length && <p>Todavía no ha obtenido insignias.</p>}
   </> : loading}</Modal>
 }
-const fields: { key: Single; label: string; empty: string }[] = [
-  { key: 'color', label: 'Color del nombre', empty: 'Color habitual' },
-  { key: 'frame', label: 'Marco de perfil', empty: 'Sin marco' },
-  { key: 'title', label: 'Título académico', empty: 'Sin título' },
-]
 function Settings({ card, photo, saved }: { card: Card; photo: string | null; saved: (card: Card) => void }) {
   const [draft, setDraft] = useState<Equipped>(card.equipped), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [message, setMessage] = useState('')
-  const badges = catalog.filter(entry => entry.badge && card.earned.includes(entry.id))
+  const badges = catalog.filter(entry => entry.badge && available(card, 'badge', entry.id))
   function update(next: Equipped) { setDraft(next); setMessage(''); setError('') }
   async function save() {
     setBusy(true); setError(''); setMessage('')
     try {
-      const result = await request<Card>('academic-profile', draft)
+      const changes = Object.fromEntries(Object.entries(draft).filter(([key, value]) =>
+        JSON.stringify(value) !== JSON.stringify(card.equipped[key as keyof Equipped])))
+      const result = await request<Card>('academic-profile', changes)
       setDraft(result.equipped)
       saved(result)
       setMessage('Perfil guardado.')
@@ -106,9 +82,9 @@ function Settings({ card, photo, saved }: { card: Card; photo: string | null; sa
           <select value={draft[key] ?? ''} onChange={e => update({ ...draft, [key]: e.target.value || null })}>
             <option value="">{empty}</option>
             {catalog.filter(entry => entry[key]).map(entry => {
-              const unlocked = card.earned.includes(entry.id)
+              const unlocked = available(card, key, entry.id)
               return <option key={entry.id} value={entry.id} disabled={!unlocked}>
-                {entry[key]}{unlocked ? '' : ' · Pendiente'}
+                {entry[key]}{!unlocked ? ' · Pendiente' : !card.earned.includes(entry.id) ? ' · Del profesor' : ''}
               </option>
             })}
           </select>
@@ -121,7 +97,7 @@ function Settings({ card, photo, saved }: { card: Card; photo: string | null; sa
           const checked = draft.badges.includes(entry.id)
           return <label key={entry.id}><input type="checkbox" checked={checked} disabled={!checked && draft.badges.length >= 3}
             onChange={() => update({ ...draft, badges: checked ? draft.badges.filter(id => id !== entry.id) : [...draft.badges, entry.id] })}/>
-            {entry.badge}</label>
+            {entry.badge}{!card.earned.includes(entry.id) && ' · Del profesor'}</label>
         })}
       </fieldset>
       <div className="actions"><button className="primary" disabled={busy || JSON.stringify(draft) === JSON.stringify(card.equipped)}>
@@ -134,16 +110,19 @@ function Settings({ card, photo, saved }: { card: Card; photo: string | null; sa
       <p>Las bandas corresponden a la escala de práctica de MathX. Una prueba revisada tiene intervención del profesor y una puntuación completa.</p>
       <ul>{catalog.map(entry => {
         const earned = card.earned.includes(entry.id)
+        const assigned = categories.filter(({ key }) => card.grants?.[key]?.includes(entry.id)).map(({ key }) => entry[key])
         return <li key={entry.id}>
-          {earned ? <Check size={16} aria-label="Conseguido"/> : <LockKeyhole size={15} aria-label="Pendiente"/>}
-          <div><strong>{[entry.color, entry.frame, entry.title, entry.badge].filter(Boolean).join(' · ')}</strong><p>{entry.rule}</p></div>
+          {earned ? <Check size={16} aria-label="Conseguido"/> : assigned.length
+            ? <Award size={16} aria-label="Asignación del profesor"/> : <LockKeyhole size={15} aria-label="Pendiente"/>}
+          <div><strong>{[entry.color, entry.frame, entry.title, entry.badge].filter(Boolean).join(' · ')}</strong><p>{entry.rule}</p>
+            {!earned && assigned.length > 0 && <p>Asignado por el profesor · {assigned.join(' · ')}</p>}</div>
         </li>
       })}</ul>
     </details>
   </>
 }
 function EditorDialog({ photo, close, changed }: { photo: string | null; close: () => void; changed: Changed }) {
-  const { card, setCard, loading } = useCard()
+  const { card, setCard, loading } = useAcademicCard()
   return <Modal heading="Personalizar perfil" close={close}>{card ?
     <Settings card={card} photo={photo} saved={v => { setCard(v); changed(v.equipped) }}/> : loading}</Modal>
 }

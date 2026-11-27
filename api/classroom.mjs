@@ -11,7 +11,7 @@ import {
   identify,
   enroll,
   checkAccess, directory, manageStudent,
-  boards, profilePhoto, setProfilePhoto, academicProfile, drillHelp,
+  boards, profilePhoto, setProfilePhoto, academicProfile, studentBenefits, drillHelp,
   toggle,
   submit,
   examTicket,
@@ -118,10 +118,12 @@ export default async function handler(req, res) {
       }
       return send(405, { error: 'Método no permitido.' })
     }
-    if (action === 'directory' || action === 'student') {
+    if (['directory', 'student', 'student-benefits'].includes(action)) {
       if (!until.admin) return send(403, { error: 'Acceso exclusivo de administración.' })
       if (req.method === 'GET' && action === 'directory') return send(200, await directory())
       if (req.method === 'POST' && action === 'student') return send(200, await manageStudent(await read(req)))
+      if (action === 'student-benefits' && ['GET', 'POST'].includes(req.method))
+        return send(200, await studentBenefits(until, url.searchParams.get('id'), req.method === 'POST' ? await read(req) : undefined))
       return send(405, { error: 'Método no permitido.' })
     }
     if (!until.admin && (selection || ['catalog', 'asset', 'pro-exam'].includes(action)))

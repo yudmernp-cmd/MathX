@@ -11,7 +11,7 @@ import {
   get, head, put, BlobNotFoundError, BlobPreconditionFailedError,
 } from '@vercel/blob'
 import { rememberPractice, recognizeHistory } from './exam-results.mjs'
-import { academicCard, canEquip, classroomAppearance, recordBatch, recordDay, refreshAcademic } from './academics.mjs'
+import { academicCard, canEquip, classroomAppearance, equippedBenefits, recordBatch, recordDay, refreshAcademic, validBenefit } from './academics.mjs'
 import { thumbnail, storePhoto, readPhoto, dropPhoto } from './profile-photo-store.mjs'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
@@ -342,20 +342,60 @@ export function boards(identity) {
     }
   })
 }
+function academicStudent(s, id) {
+  const p = id && s.students[id]
+  if (!p) fail(404, 'Este perfil ya no está disponible.')
+  recognizeHistory(s, id)
+  refreshAcademic(p)
+  return p
+}
 export async function academicProfile(identity, member = null, choices = undefined) {
   if (choices !== undefined && member !== null) fail(403, 'Solo puedes personalizar tu perfil.')
   if (member === null && identity.admin) fail(403, 'Elige un estudiante en las clasificaciones.')
   return accountState(identity, s => {
     const id = member === null ? identity.id : Object.keys(s.students).find(id => sign('class-card', id) === member)
-    const p = id && s.students[id]
-    if (!p) fail(404, 'Este perfil ya no está disponible.')
-    recognizeHistory(s, id)
-    refreshAcademic(p)
+    const p = academicStudent(s, id)
     if (choices !== undefined) {
-      if (!canEquip(p, choices)) fail(400, 'Elige elementos desbloqueados y hasta tres insignias distintas.')
-      p.academics.equipped = choices
+      if (!choices || typeof choices !== 'object' || Array.isArray(choices) || !Object.keys(choices).length)
+        fail(400, 'Elige los elementos que quieras equipar.')
+      const equipped = { ...equippedBenefits(p), ...choices }
+      if (!canEquip(p, equipped)) fail(400, 'Elige elementos disponibles y hasta tres insignias distintas.')
+      p.academics.equipped = equipped
     }
     return academicCard(p, member === null)
+  }, true)
+}
+function equipGrant(equipped, { kind, id, replace }) {
+  if (kind !== 'badge') return { ...equipped, [kind]: id }
+  const { badges } = equipped
+  if (badges.includes(id)) return equipped
+  if (replace !== undefined) {
+    if (!badges.includes(replace)) fail(409, 'Las insignias destacadas cambiaron. Elige de nuevo.')
+    return { ...equipped, badges: badges.map(current => current === replace ? id : current) }
+  }
+  if (badges.length >= 3) fail(409, 'Elige cuál de las tres insignias destacadas quieres sustituir.')
+  return { ...equipped, badges: [...badges, id] }
+}
+export async function studentBenefits(identity, studentId, grant = undefined) {
+  if (!identity?.admin) fail(403, 'Acceso exclusivo de administración.')
+  if (typeof studentId !== 'string' || !/^[a-f0-9]{64}$/.test(studentId)) fail(400, 'Alumno inválido.')
+  if (grant !== undefined && (!grant || !validBenefit(grant.kind, grant.id) ||
+      typeof grant.equip !== 'boolean' ||
+      (grant.replace !== undefined && !(grant.equip && grant.kind === 'badge' && validBenefit('badge', grant.replace)))))
+    fail(400, 'Elige un beneficio válido para esta categoría.')
+  return accountState(identity, s => {
+    const p = academicStudent(s, studentId)
+    if (grant) {
+      const { kind, id, equip } = grant
+      const a = p.academics
+      if (equip) a.equipped = equipGrant(equippedBenefits(p), grant)
+      if (!a.earned.includes(id)) {
+        const grants = (a.grants ??= {})
+        const group = (grants[kind] ??= [])
+        if (!group.includes(id)) group.push(id)
+      }
+    }
+    return academicCard(p, true)
   }, true)
 }
 export const toggle = (active) =>
